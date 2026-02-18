@@ -38,14 +38,22 @@ lb config \
 # Build Ubuntu LiveCD ISO with SquashFS root.
 lb build
 
-SOURCE_ISO="live-image-${ARCH}.iso"
-if [ ! -f "${SOURCE_ISO}" ]; then
-  # Backward compatibility when using iso-hybrid mode.
+SOURCE_ISO=""
+if [ -f "live-image-${ARCH}.iso" ]; then
+  SOURCE_ISO="live-image-${ARCH}.iso"
+elif [ -f "live-image-${ARCH}.hybrid.iso" ]; then
   SOURCE_ISO="live-image-${ARCH}.hybrid.iso"
+else
+  # Fallback: detect ISO artifact location/name changes across live-build versions.
+  SOURCE_ISO="$(find . -maxdepth 4 -type f \( -name '*.iso' -o -name '*.hybrid.iso' \) | sort | tail -n 1 || true)"
 fi
 
-if [ ! -f "${SOURCE_ISO}" ]; then
-  echo "expected ISO not found: live-image-${ARCH}.iso or live-image-${ARCH}.hybrid.iso" >&2
+if [ -z "${SOURCE_ISO}" ] || [ ! -f "${SOURCE_ISO}" ]; then
+  echo "expected ISO not found. looked for live-image-${ARCH}.iso/hybrid and scanned workspace." >&2
+  echo "debug listing (top-level):" >&2
+  ls -la >&2 || true
+  echo "debug listing (*.iso within depth 4):" >&2
+  find . -maxdepth 4 -type f | sort >&2 || true
   exit 1
 fi
 
