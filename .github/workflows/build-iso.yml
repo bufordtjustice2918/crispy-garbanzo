@@ -1,0 +1,53 @@
+name: build-iso
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["main"]
+    paths:
+      - ".github/workflows/build-iso.yml"
+      - "build/iso/**"
+      - "deploy/nftables/**"
+
+jobs:
+  build-livecd:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            live-build \
+            debootstrap \
+            xorriso \
+            squashfs-tools \
+            grub-pc-bin \
+            grub-efi-amd64-bin \
+            mtools \
+            dosfstools
+
+      - name: Build Ubuntu 24.04 LiveCD ISO
+        env:
+          DISTRO: noble
+          ARCH: amd64
+          ISO_NAME: clawgress-noble-amd64.iso
+        run: |
+          ./build/iso/scripts/build-livecd.sh
+
+      - name: Generate checksums
+        run: |
+          cd build/iso/out
+          sha256sum *.iso > SHA256SUMS
+
+      - name: Upload ISO artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: clawgress-livecd-iso
+          path: |
+            build/iso/out/*.iso
+            build/iso/out/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 14

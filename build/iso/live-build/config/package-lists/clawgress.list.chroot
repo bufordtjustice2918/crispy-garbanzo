@@ -1,0 +1,27 @@
+# Core networking and firewall stack
+nftables
+iproute2
+conntrack
+
+# DNS service
+bind9
+bind9-utils
+
+# L4/L7 proxy
+haproxy
+
+# Operational utilities
+curl
+jq
+rsyslog
+ca-certificates
+openssh-server
+vim-tiny
+
+# Live boot and installer path
+casper
+ubiquity
+ubiquity-casper
+
+# Compression and runtime helpers
+squashfs-tools

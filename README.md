@@ -50,3 +50,9 @@ MVPv1 requires `nftables` for transparent gateway enforcement.
 sudo nft -f deploy/nftables/clawgress.nft
 sudo nft list table inet clawgress
 ```
+
+## LiveCD ISO Workflow
+Ubuntu 24.04 LiveCD ISO build workflow and assets:
+- Workflow: `.github/workflows/build-iso.yml`
+- Build script: `build/iso/scripts/build-livecd.sh`
+- Details: `docs/ISO_WORKFLOW.md`

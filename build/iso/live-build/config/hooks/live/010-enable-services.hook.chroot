@@ -1,0 +1,40 @@
+#!/bin/sh
+set -eu
+
+# Ensure core daemons are enabled for live environment boot.
+systemctl enable nftables || true
+systemctl enable haproxy || true
+systemctl enable bind9 || true
+
+# Seed default HAProxy and named configs if package defaults are absent.
+if [ ! -f /etc/haproxy/haproxy.cfg ]; then
+  cat > /etc/haproxy/haproxy.cfg <<'CFG'
+global
+  daemon
+  maxconn 1024
+
+defaults
+  mode http
+  timeout connect 5s
+  timeout client  30s
+  timeout server  30s
+
+frontend localstats
+  bind 127.0.0.1:8404
+  stats enable
+  stats uri /stats
+CFG
+fi
+
+if [ ! -f /etc/bind/named.conf.options ]; then
+  mkdir -p /etc/bind
+  cat > /etc/bind/named.conf.options <<'CFG'
+options {
+  directory "/var/cache/bind";
+  recursion no;
+  dnssec-validation auto;
+  listen-on { any; };
+  allow-query { any; };
+};
+CFG
+fi

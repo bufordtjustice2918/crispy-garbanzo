@@ -87,6 +87,7 @@ Success means a team can deploy Clawgress, route agent egress through it, enforc
 - Runtime writes go to ephemeral overlay until explicit install.
 - Includes first-boot CLI access for `set`, `show`, `configure`, `commit`, and `install`.
 - Supports transition from live media to disk install with preserved committed config.
+- Live image includes `nftables`, `bind9`, and `haproxy` enabled as core appliance daemons.
 
 ## 5. Component Plan
 
