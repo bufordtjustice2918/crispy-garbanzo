@@ -33,7 +33,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y jq nftables iproute2 conntrack curl python3 \
             live-build debootstrap xorriso squashfs-tools grub-pc-bin grub-efi-amd64-bin \
-            mtools dosfstools qemu-system-x86
+            mtools dosfstools qemu-system-x86 syslinux-utils
 
       - name: Format check
         run: |

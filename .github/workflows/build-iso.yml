@@ -28,7 +28,8 @@ jobs:
             grub-efi-amd64-bin \
             mtools \
             dosfstools \
-            qemu-system-x86
+            qemu-system-x86 \
+            syslinux-utils
 
       - name: Build Ubuntu 24.04 LiveCD ISO
         env:
