@@ -1,167 +1,260 @@
-# Clawgress MVP v1 (Draft)
+# Clawgress MVP v1
 
-## 1. MVP Objective
-Deliver a production-viable first release that enforces identity-aware outbound policy for AI agents with auditable decisions and per-agent rate controls.
+## 1. Goal
+Ship a working Clawgress release that enforces identity-aware outbound egress policy for AI agents on an Ubuntu 24.04 LTS baseline.
 
-Primary outcome: organizations can place Clawgress in front of agent traffic and reliably control who can call what, how often, and with full request-level attribution.
+Success means a team can deploy Clawgress, route agent egress through it, enforce policy and rate limits, and retrieve immutable decision logs.
 
-## 2. Base Platform
-- OS baseline: Ubuntu Server 24.04 LTS for all non-Kubernetes deployments.
-- Preferred first deployment mode: Explicit Proxy on Ubuntu 24.04.
-- Secondary MVP mode: Transparent Gateway on Ubuntu 24.04.
+## 2. Ubuntu 24.04 Baseline
 
-## 3. In-Scope Features (MVPv1)
-1. Identity Binding
+### 2.1 Supported OS
+- Ubuntu Server 24.04 LTS (x86_64) is the primary and required MVP host OS.
+- Kernel and package updates come from official Ubuntu 24.04 repositories.
+
+### 2.2 Host Requirements (per gateway node)
+- 4 vCPU minimum
+- 8 GB RAM minimum
+- 80 GB SSD minimum
+- Static IP or reserved DHCP lease
+- NTP enabled and synchronized
+
+### 2.3 Required Host Packages
+- `ca-certificates`
+- `curl`
+- `jq`
+- `nftables`
+- `iproute2`
+- `conntrack`
+- `systemd`
+- `rsyslog` or journald forwarder
+
+`nftables` is mandatory for MVPv1 host-level traffic control and transparent-gateway enforcement.
+
+## 3. MVP Scope
+
+### 3.1 In Scope
+1. Identity binding
 - Required identity on every outbound request.
-- Supported in MVP: JWT and API key binding.
-- Canonical fields: `agent_id`, `team_id`, `project_id`, `environment`.
+- MVP auth methods: signed JWT and API key.
+- Canonical identity fields: `agent_id`, `team_id`, `project_id`, `environment`.
 
-2. Policy Enforcement
-- Domain allowlist/denylist.
-- HTTP method restrictions.
-- Optional path prefix restrictions.
-- Deterministic allow/deny decisions with policy ID attribution.
+2. Egress policy enforcement
+- Domain allowlist and denylist.
+- HTTP method control.
+- Optional path prefix matching.
+- Deterministic allow/deny decision with `policy_id`.
 
-3. Rate Limiting
-- Per-agent requests-per-second and requests-per-minute limits.
-- Enforcement modes: hard stop and alert-only.
+3. Per-agent rate limits
+- Requests per second.
+- Requests per minute.
+- Enforcement modes: `hard_stop`, `alert_only`.
 
-4. Logging and Audit
-- Structured immutable decision logs for every request.
-- Required fields: timestamp, identity, destination, decision, policy_id, latency, bytes, request_id.
+4. Immutable audit logging
+- One decision event per request.
+- Log fields: timestamp, request_id, identity, destination, decision, policy_id, bytes, latency.
 
-5. Admin API (minimal)
-- Agent registration CRUD.
-- Policy CRUD + publish.
-- Quota configuration endpoints.
-- Audit log query endpoint.
+5. Minimal control plane
+- Admin API for agents, policies, quotas, and log query.
+- Basic web UI for agent list, policy list, and recent traffic decisions.
 
-6. Basic Operator UI
-- Agent registry list.
-- Policy list/status.
-- Recent decisions dashboard.
+### 3.2 Out of Scope
+- Full outbound DLP redaction pipeline.
+- In-line anomaly model blocking.
+- Deep AI payload parsing and tool-call governance.
+- SaaS multi-region control plane.
+- Full token-based cost chargeback.
 
-## 4. Out-of-Scope (MVPv1)
-- Full DLP classification/redaction.
-- AI protocol deep parsing and tool-call enforcement.
-- Behavioral anomaly engine in active enforcement path.
-- Multi-tenant MSP/federated control planes.
-- Full cost accounting per token/provider.
+## 4. Deployment Modes for MVP
 
-## 5. MVP Architecture Slice
+### 4.1 Mode A (Primary): Explicit Proxy
+- Agents set `HTTP_PROXY` and `HTTPS_PROXY`.
+- Fastest to deploy with minimal network redesign.
+- Preferred for MVP pilots.
 
-### 5.1 Components to Build
-- `gateway`: L7 proxy + enforcement plugin.
-- `identity-service`: validates JWT/API key and resolves canonical identity.
-- `policy-service`: policy storage, compilation, signed bundle publish.
-- `quota-service`: per-agent counters and rate-limit decisions.
-- `audit-service`: append-only event intake and query.
-- `admin-api`: external management API.
-- `admin-ui`: lightweight web UI over admin-api.
+### 4.2 Mode B (Secondary): Transparent Gateway
+- Ubuntu host acts as default egress gateway.
+- Traffic is routed/NATed through Clawgress.
+- `nftables` is the required packet filter/NAT framework for this mode.
+- Used for VM subnet egress control.
 
-### 5.2 Request Path (MVP)
-1. Agent sends request via explicit proxy or gateway route.
-2. Gateway requests identity resolution.
-3. Gateway evaluates policy from local signed bundle cache.
-4. Gateway checks quota decision.
-5. Gateway enforces allow/deny/rate-limit.
-6. Gateway emits audit event asynchronously.
+## 5. Component Plan
 
-## 6. Ubuntu 24.04 Deployment Blueprint
+### 5.1 Services
+- `clawgress-gateway`
+- `clawgress-identity`
+- `clawgress-policy`
+- `clawgress-quota`
+- `clawgress-audit`
+- `clawgress-admin-api`
+- `clawgress-admin-ui`
 
-### 6.1 Node Roles
-- Gateway nodes (horizontal scale).
-- Control-plane nodes (API/services).
-- Data nodes (DB/log store), can be co-located for small environments.
+### 5.2 Request Flow
+1. Agent sends outbound request to gateway.
+2. Gateway resolves identity from JWT or API key.
+3. Gateway evaluates local signed policy bundle.
+4. Gateway checks quota state for the agent.
+5. Gateway allows, denies, or rate-limits.
+6. Gateway publishes an immutable audit event.
 
-### 6.2 Service Management
-- systemd units for each Clawgress service.
-- Environment files under `/etc/clawgress/`.
-- Logs via journald + forwarder to SIEM.
+### 5.3 Runtime Topology (MVP)
+- Gateway nodes: horizontally scalable.
+- Control-plane node(s): admin API and services.
+- Data node(s): relational DB + append-only audit store.
 
-### 6.3 Network and Security Defaults
-- Inbound limited to required ports only.
-- mTLS between gateway and internal services.
-- Ubuntu 24.04 security updates enabled by default.
-- AppArmor profiles for gateway and API services.
+## 6. CLI and API Operation Modes (`opmode`)
 
-## 7. Data Contracts (MVP Minimum)
+MVPv1 includes a first-party CLI and API surface with explicit operational modes.
 
-### 7.1 Identity Record
+### 6.1 `opmode=configure`
+- Purpose: stage and validate configuration changes.
+- Behavior: update agents, policies, quotas, and gateway settings without activating them immediately.
+- Output: returns a config revision ID and validation report.
+- Safety: no runtime enforcement changes are applied until `opmode=commit`.
+
+### 6.2 `opmode=commit`
+- Purpose: transactionally apply staged configuration.
+- Behavior: atomically publishes a signed policy/config bundle to gateways.
+- Output: returns commit ID, applied revision, timestamp, and rollout status.
+- Safety: all-or-nothing commit semantics with rollback to last-known-good revision on failure.
+
+### 6.3 API Access
+- All control-plane operations are exposed via authenticated REST APIs.
+- CLI is a thin client over the same APIs; no hidden local-only mutations.
+- Every `configure` and `commit` call is audit logged with actor, diff summary, and result.
+
+### 6.4 Repo-Linked Auto-Commit Workflow
+- Control-plane change artifacts are persisted in this repo for traceability.
+- Default workflow for this project: commit generated config/spec updates after successful `opmode=commit`.
+- Commit metadata includes revision ID and operator identity.
+
+## 7. Ubuntu 24.04 System Layout
+
+### 7.1 Directories
+- `/etc/clawgress/` for service configs
+- `/var/lib/clawgress/` for local state and cache
+- `/var/log/clawgress/` if file logging is enabled
+
+### 7.2 Service Management
+All services run as non-root systemd units:
+- `clawgress-gateway.service`
+- `clawgress-identity.service`
+- `clawgress-policy.service`
+- `clawgress-quota.service`
+- `clawgress-audit.service`
+- `clawgress-admin-api.service`
+- `clawgress-admin-ui.service`
+
+### 7.3 Security Defaults
+- Ubuntu unattended security updates enabled.
+- AppArmor enforced for gateway and API services.
+- Inbound ports default-deny except management and proxy ports.
+- mTLS for internal service-to-service traffic.
+- No plaintext secrets on disk.
+
+## 8. nftables Enforcement Baseline (Required)
+- Backend: `nftables` only (no legacy iptables rule authoring in MVP code paths).
+- Rule model: table/chain/set based rules with atomic updates for policy changes.
+- Required usage: NAT and forwarding control for transparent gateway mode.
+- Required usage: fast destination allow/deny matching via nft sets/maps.
+- Required usage: packet/flow accounting hooks for egress observability.
+- Optional usage: host-level egress deny guardrails for non-proxy traffic bypass attempts.
+
+## 9. Data Contracts (MVP Minimum)
+
+### 9.1 Identity
 - `agent_id` (required)
 - `team_id` (required)
 - `project_id` (required)
 - `environment` (required)
-- `auth_type` (`jwt` | `api_key`)
-- `status` (`active` | `disabled`)
+- `auth_type` (`jwt` or `api_key`)
+- `status` (`active` or `disabled`)
 
-### 7.2 Policy Record
+### 9.2 Policy
 - `policy_id`
 - `version`
-- `match` (identity selectors + destination/method/path rules)
-- `action` (`allow` | `deny`)
 - `priority`
 - `enabled`
+- `match.identity`
+- `match.destination`
+- `match.method`
+- `match.path_prefix`
+- `action` (`allow` or `deny`)
 
-### 7.3 Quota Record
+### 9.3 Quota
 - `agent_id`
 - `rps_limit`
 - `rpm_limit`
-- `mode` (`hard_stop` | `alert_only`)
+- `mode` (`hard_stop` or `alert_only`)
 
-## 8. SLOs and Acceptance Criteria
+### 9.4 Audit Event
+- `timestamp`
+- `request_id`
+- `agent_id`
+- `team_id`
+- `project_id`
+- `environment`
+- `destination_host`
+- `http_method`
+- `path`
+- `decision`
+- `policy_id`
+- `quota_applied`
+- `latency_ms`
+- `bytes_out`
+- `bytes_in`
 
-### 8.1 Functional Acceptance
-- Anonymous requests are denied.
-- Policy decisions are deterministic and reproducible.
-- Per-agent limits are enforced under concurrent load.
-- Every decision emits exactly one audit event.
+## 10. SLOs and Acceptance Criteria
 
-### 8.2 Performance Acceptance
-- p50 added latency <= 5ms in no-TLS-interception mode.
-- p95 added latency <= 15ms under nominal load.
-- Sustained 2k concurrent outbound connections per gateway node for MVP target hardware.
+### 10.1 Functional
+- Anonymous outbound traffic is denied 100% of the time.
+- Same request context always produces the same policy decision.
+- Per-agent limits apply correctly under concurrent traffic.
+- Every request has one and only one decision log event.
 
-### 8.3 Reliability Acceptance
-- Gateway remains functional with last-known-good policy if policy-service is unavailable.
-- Audit pipeline backpressure does not block enforcement path (bounded queue + alert).
+### 10.2 Performance
+- Added p50 latency <= 5 ms (no TLS interception path).
+- Added p95 latency <= 15 ms under nominal load.
+- At least 2k concurrent outbound connections per gateway node on MVP reference hardware.
 
-## 9. Delivery Plan (90 Days)
+### 10.3 Reliability
+- Last-known-good policy remains active if policy service is down.
+- Audit sink outages do not block request path; local queue and alerting must trigger.
 
-## Phase A (Weeks 1-3): Foundations
-- Repository layout, service scaffolding, CI baseline.
-- Identity model and schema finalized.
-- Policy DSL v0 and compiler MVP.
+## 11. 90-Day Delivery Plan
 
-## Phase B (Weeks 4-6): Enforce and Log
-- Gateway enforcement integration.
-- Policy bundle distribution and cache.
-- Audit event pipeline and query API.
+### Phase 1 (Weeks 1-3): Core Foundations
+- Repo/service scaffolding and CI.
+- Ubuntu 24.04 packaging and systemd templates.
+- Identity schema and auth verification implementation.
 
-## Phase C (Weeks 7-9): Quotas and API/UI
-- Quota service and in-line checks.
-- Admin API for identity/policy/quota management.
-- Basic UI for operators.
+### Phase 2 (Weeks 4-6): Enforcement Core
+- Gateway integration with policy engine.
+- Policy bundle compile, sign, and distribution.
+- Deterministic decision tracing and audit events.
 
-## Phase D (Weeks 10-12): Hardening and Release
-- Load, chaos, and fail-mode testing.
-- Ubuntu 24.04 install package and systemd templates.
-- Security review and release candidate.
+### Phase 3 (Weeks 7-9): Quotas and Control Plane
+- Per-agent rate limit engine.
+- Admin API for identity/policy/quota operations.
+- Basic admin UI views.
 
-## 10. Test Strategy (MVP)
-- Unit tests for policy evaluation determinism.
-- Integration tests for request path (identity -> policy -> quota -> decision).
-- Replay tests for audit schema compatibility.
-- Load tests for latency and rate-limit correctness.
-- Failure injection tests for policy and audit backend outages.
+### Phase 4 (Weeks 10-12): Hardening and Release
+- Load, failure, and recovery testing.
+- Security baseline validation on Ubuntu 24.04.
+- MVP release candidate and operator runbook.
 
-## 11. Release Artifacts
-- Versioned service binaries or container images.
-- Ubuntu 24.04 install/runbook.
-- Default policy starter pack.
-- API reference for admin endpoints.
-- Operational dashboard starter queries.
+## 12. Testing Matrix
+- Unit: policy evaluator, identity resolver, quota logic.
+- Integration: full request path identity -> policy -> quota -> decision -> audit.
+- Performance: sustained load and latency budgets.
+- Failure: policy service outage, audit backend outage, identity backend timeout.
+- Upgrade: rolling restart of services on Ubuntu 24.04 without data loss.
 
-## 12. MVP Exit Criteria
-MVPv1 is complete when all in-scope features ship on Ubuntu 24.04 with passing acceptance criteria and runbook-verified deployment in at least one explicit-proxy environment.
+## 13. Release Artifacts
+- Versioned binaries or container images for all services.
+- Ubuntu 24.04 install guide and operations runbook.
+- Default starter policy bundle.
+- Admin API reference.
+- Dashboard and log query examples.
 
+## 14. MVP Exit Criteria
+MVPv1 is complete when all in-scope features run on Ubuntu 24.04, pass the acceptance criteria above, and complete at least one successful pilot deployment in explicit proxy mode.
