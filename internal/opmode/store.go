@@ -37,6 +37,7 @@ type CommitResponse struct {
 	NftApply   string    `json:"nft_apply,omitempty"`
 	NftError   string    `json:"nft_error,omitempty"`
 	NftRules   string    `json:"nft_rules,omitempty"`
+	OpsPlan    any       `json:"ops_plan,omitempty"`
 }
 
 type Revision struct {

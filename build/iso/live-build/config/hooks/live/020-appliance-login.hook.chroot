@@ -1,0 +1,26 @@
+#!/bin/sh
+set -eu
+
+# Create default appliance operator account for first boot.
+if ! id -u clawgress >/dev/null 2>&1; then
+  useradd -m -s /bin/bash clawgress
+fi
+
+echo 'clawgress:clawgress' | chpasswd
+chage -d -1 clawgress || true
+
+# ANSI login banner shown after authentication.
+cat > /etc/update-motd.d/00-clawgress-banner <<'BANNER'
+#!/bin/sh
+printf '\033[1;36m'
+printf '   ________                    ________                      \n'
+printf '  / ____/ /___ __      _______/ ____/ /___  __________ ____  \n'
+printf ' / /   / / __ `/ | /| / / __  / __/ / / __ \/ ___/ __ `/ _ \\ \n'
+printf '/ /___/ / /_/ /| |/ |/ / /_/ / /___/ / /_/ / /  / /_/ /  __/ \n'
+printf '\\____/_/\\__,_/ |__/|__/\\__,_/_____/_/\\____/_/   \\__, /\\___/  \n'
+printf '                                                    /____/      \n'
+printf '\033[0;33m'
+printf 'Agent-Aware Egress Gateway Appliance\n'
+printf '\033[0m\n'
+BANNER
+chmod +x /etc/update-motd.d/00-clawgress-banner

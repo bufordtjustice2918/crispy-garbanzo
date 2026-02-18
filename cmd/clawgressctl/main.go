@@ -14,6 +14,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/bufordtjustice2918/crispy-garbanzo/internal/cmdmap"
@@ -165,7 +166,7 @@ func runCommitOnce(apiURL, actor, expected string) map[string]any {
 	if expected != "" {
 		body["expected_revision_id"] = expected
 	}
-	return doJSON(http.MethodPost, apiURL+"/v1/opmode/commit", body)
+	return doJSONWithSpinner(http.MethodPost, apiURL+"/v1/opmode/commit", body, "Committing configuration")
 }
 
 func runState(args []string) {
@@ -333,6 +334,44 @@ func doJSON(method, url string, payload any) map[string]any {
 		os.Exit(1)
 	}
 	return out
+}
+
+func doJSONWithSpinner(method, url string, payload any, message string) map[string]any {
+	if os.Getenv("NO_SPINNER") == "1" || !isTerminal() {
+		return doJSON(method, url, payload)
+	}
+
+	done := make(chan struct{})
+	var once sync.Once
+	stop := func() { once.Do(func() { close(done) }) }
+
+	go func() {
+		frames := []rune{'|', '/', '-', '\\'}
+		i := 0
+		for {
+			select {
+			case <-done:
+				fmt.Fprintf(os.Stderr, "\r%s ... done\n", message)
+				return
+			default:
+				fmt.Fprintf(os.Stderr, "\r%s ... %c", message, frames[i%len(frames)])
+				time.Sleep(120 * time.Millisecond)
+				i++
+			}
+		}
+	}()
+
+	resp := doJSON(method, url, payload)
+	stop()
+	return resp
+}
+
+func isTerminal() bool {
+	info, err := os.Stdout.Stat()
+	if err != nil {
+		return false
+	}
+	return (info.Mode() & os.ModeCharDevice) != 0
 }
 
 func loadOrInitConfig(path string) (map[string]any, error) {

@@ -8,6 +8,7 @@
 
   {"kind":"set","tokens":["interfaces","ethernet","<ifname>","description"],"value_token":"<value>","description":"Set interface description"},
   {"kind":"set","tokens":["interfaces","ethernet","<ifname>","address"],"value_token":"<cidr>","description":"Add interface address","multi":true},
+  {"kind":"set","tokens":["interfaces","ethernet","<ifname>","address"],"value_token":"dhcp","description":"Set interface address from DHCP"},
   {"kind":"set","tokens":["interfaces","ethernet","<ifname>","mtu"],"value_token":"<port>","description":"Set interface MTU"},
   {"kind":"set","tokens":["interfaces","ethernet","<ifname>","role"],"value_token":"<lan|wan>","description":"Set interface role"},
   {"kind":"set","tokens":["interfaces","ethernet","<ifname>","disable"],"value_token":"enable","description":"Disable interface"},

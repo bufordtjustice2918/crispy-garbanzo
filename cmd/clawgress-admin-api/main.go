@@ -78,15 +78,18 @@ func main() {
 			}
 			return
 		}
+		state, err := store.State()
+		if err != nil {
+			resp.NftApply = "error"
+			resp.NftError = err.Error()
+			writeJSON(w, http.StatusInternalServerError, resp)
+			return
+		}
+		if state.Active != nil {
+			resp.OpsPlan = enforcer.BuildOpsPlan(state.Active.Changes)
+		}
 
 		if nftApply {
-			state, err := store.State()
-			if err != nil {
-				resp.NftApply = "error"
-				resp.NftError = err.Error()
-				writeJSON(w, http.StatusInternalServerError, resp)
-				return
-			}
 			if state.Active == nil {
 				resp.NftApply = "error"
 				resp.NftError = "active revision missing after commit"

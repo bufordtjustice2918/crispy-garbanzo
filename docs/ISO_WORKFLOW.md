@@ -36,11 +36,14 @@ From `build/iso/live-build/config/package-lists/clawgress.list.chroot`:
 ## Service Behavior on Live Boot
 Hook script:
 - `build/iso/live-build/config/hooks/live/010-enable-services.hook.chroot`
+- `build/iso/live-build/config/hooks/live/020-appliance-login.hook.chroot`
 
 Behavior:
 - Enables `nftables`, `haproxy`, and `bind9` services.
 - Seeds baseline config if missing.
 - Enables `clawgress-live-selftest.service` for boot-time validation.
+- Creates default login user `clawgress` with password `clawgress`.
+- Installs ANSI MOTD banner shown on login.
 
 ## Full ISO Boot Validation
 The workflow boots the generated ISO in QEMU (headless, serial console) and requires the live system to emit `CLAWGRESS_LIVE_SELFTEST_PASS`.

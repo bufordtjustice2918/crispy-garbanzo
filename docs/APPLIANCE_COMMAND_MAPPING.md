@@ -14,6 +14,7 @@ The focus is command semantics and transactional behavior (`configure` -> `commi
 - `set system host-name <name>`
 - `set system ntp server <server>`
 - `set interfaces ethernet <ifname> address <cidr>`
+- `set interfaces ethernet <ifname> address dhcp`
 - `set interfaces ethernet <ifname> role <lan|wan>`
 - `set firewall nftables input default-action <accept|drop>`
 - `set firewall nftables forward default-action <accept|drop>`
@@ -52,6 +53,19 @@ Path model:
 - `tokens[]` define fixed/variable command tree segments.
 - `value_token` defines terminal value grammar for `set` commands.
 - Hyphenated tokens (for example `host-name`) are normalized to internal underscore paths for backend storage.
+
+## Backend Resolution
+- Every command pattern in `internal/cmdmap/command_schema.json` is imported into the in-memory command model (`internal/cmdmap`).
+- Backend mapping is resolved per pattern in `internal/cmdmap/catalog.go`.
+- Current backend families: `nftables`, `bind9`, `haproxy`, `chrony`, `systemd-networkd`, `dhclient+systemd`, `control-plane`.
+
+## Commit-Time Operation Plan
+- The commit API now returns `ops_plan`, a backend action plan derived from staged commands.
+- Example for `set interfaces ethernet eth0 address dhcp`:
+  - write `/run/dhclient/dhclient_eth0.conf`
+  - write `/run/systemd/system/dhclient@eth0.service.d/10-override.conf`
+  - `systemctl daemon-reload`
+  - `systemctl restart dhclient@eth0.service`
 
 ## CLI Behavior
 - Candidate configuration is updated using `set` commands.

@@ -18,7 +18,7 @@ func Commands() map[string][]Command {
 			Kind:        tp.Kind,
 			Pattern:     tokensToPattern(tp),
 			Description: tp.Description,
-			Backend:     backendForTokens(tp.Tokens),
+			Backend:     backendFor(tp),
 			Example:     exampleFor(tp),
 		}
 		if tp.Kind == "set" {
@@ -98,9 +98,16 @@ func sampleValue(v string) string {
 	return v
 }
 
-func backendForTokens(tokens []string) string {
+func backendFor(tp TokenPath) string {
+	tokens := tp.Tokens
 	if len(tokens) == 0 {
 		return "config"
+	}
+	if len(tokens) == 4 && strings.Join(tokens, ".") == "interfaces.ethernet.<ifname>.address" {
+		if tp.ValueToken == "dhcp" {
+			return "dhclient+systemd"
+		}
+		return "systemd-networkd"
 	}
 	joined := strings.Join(tokens, ".")
 	switch {
