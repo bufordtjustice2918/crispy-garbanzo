@@ -1,0 +1,20 @@
+{
+  "gateway": {
+    "mode": "explicit_proxy",
+    "listen": ":8081"
+  },
+  "policy": {
+    "default_action": "deny",
+    "allowed_domains": [
+      "api.openai.com",
+      "api.anthropic.com"
+    ]
+  },
+  "quotas": {
+    "agent_alpha": {
+      "rps_limit": 10,
+      "rpm_limit": 300,
+      "mode": "hard_stop"
+    }
+  }
+}
