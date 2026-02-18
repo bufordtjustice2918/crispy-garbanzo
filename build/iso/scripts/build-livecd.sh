@@ -26,7 +26,7 @@ lb config \
   --mode ubuntu \
   --distribution "${DISTRO}" \
   --architectures "${ARCH}" \
-  --binary-images iso-hybrid \
+  --binary-images iso \
   --bootloader grub-efi \
   --bootappend-live "boot=live components console=ttyS0,115200n8" \
   --archive-areas "main restricted universe multiverse" \
