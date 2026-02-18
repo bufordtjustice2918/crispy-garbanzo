@@ -1,0 +1,50 @@
+name: e2e
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["main"]
+    paths:
+      - "cmd/**"
+      - "internal/**"
+      - "tests/**"
+      - ".github/workflows/e2e.yml"
+  pull_request:
+    paths:
+      - "cmd/**"
+      - "internal/**"
+      - "tests/**"
+      - ".github/workflows/e2e.yml"
+
+jobs:
+  mvpv1-e2e:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22.x"
+
+      - name: Install test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq nftables iproute2 conntrack curl python3
+
+      - name: Format check
+        run: |
+          test -z "$(gofmt -l cmd internal)"
+
+      - name: Build
+        run: |
+          go build ./...
+
+      - name: Control-plane E2E (set/show/configure/commit)
+        run: |
+          ./tests/e2e/test_control_plane.sh
+
+      - name: Network E2E (NAT + firewall)
+        run: |
+          sudo ./tests/e2e/test_networking.sh

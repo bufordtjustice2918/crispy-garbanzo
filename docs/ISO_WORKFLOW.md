@@ -24,6 +24,7 @@ Triggers:
 
 Script:
 - `build/iso/scripts/build-livecd.sh`
+- `build/iso/scripts/boot-test.sh`
 
 ## Included Runtime Packages
 From `build/iso/live-build/config/package-lists/clawgress.list.chroot`:
@@ -39,6 +40,19 @@ Hook script:
 Behavior:
 - Enables `nftables`, `haproxy`, and `bind9` services.
 - Seeds baseline config if missing.
+- Enables `clawgress-live-selftest.service` for boot-time validation.
+
+## Full ISO Boot Validation
+The workflow boots the generated ISO in QEMU (headless, serial console) and requires the live system to emit `CLAWGRESS_LIVE_SELFTEST_PASS`.
+
+Self-test assets:
+- `build/iso/live-build/config/includes.chroot/usr/local/sbin/clawgress-live-selftest.sh`
+- `build/iso/live-build/config/includes.chroot/etc/systemd/system/clawgress-live-selftest.service`
+
+Validation checks include:
+- Live system fully boots from ISO/SquashFS
+- `nftables`, `bind9`, and `haproxy` restart and reach active state
+- nftables ruleset is loaded
 
 ## Firewall Baseline
 Injected config:

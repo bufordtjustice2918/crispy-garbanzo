@@ -55,8 +55,13 @@ sudo nft list table inet clawgress
 Ubuntu 24.04 LiveCD ISO build workflow and assets:
 - Workflow: `.github/workflows/build-iso.yml`
 - Build script: `build/iso/scripts/build-livecd.sh`
+- Boot test script: `build/iso/scripts/boot-test.sh`
 - Details: `docs/ISO_WORKFLOW.md`
 
 ## VyOS-Style Command Model
 - Command mapping reference: `docs/VYOS_COMMAND_MAPPING.md`
 - Token path catalog (source of truth): `internal/cmdmap/token_paths.go`
+
+## End-to-End Testing
+- Workflow: `.github/workflows/e2e.yml`
+- Test details: `docs/E2E_TESTING.md`

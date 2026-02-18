@@ -27,7 +27,8 @@ jobs:
             grub-pc-bin \
             grub-efi-amd64-bin \
             mtools \
-            dosfstools
+            dosfstools \
+            qemu-system-x86
 
       - name: Build Ubuntu 24.04 LiveCD ISO
         env:
@@ -36,6 +37,10 @@ jobs:
           ISO_NAME: clawgress-noble-amd64.iso
         run: |
           ./build/iso/scripts/build-livecd.sh
+
+      - name: Boot ISO in QEMU and run live self-test
+        run: |
+          ./build/iso/scripts/boot-test.sh build/iso/out/clawgress-noble-amd64.iso 1200
 
       - name: Generate checksums
         run: |
@@ -49,5 +54,6 @@ jobs:
           path: |
             build/iso/out/*.iso
             build/iso/out/SHA256SUMS
+            build/iso/out/boot-test.log
           if-no-files-found: error
           retention-days: 14

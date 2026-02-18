@@ -5,6 +5,7 @@ set -eu
 systemctl enable nftables || true
 systemctl enable haproxy || true
 systemctl enable bind9 || true
+systemctl enable clawgress-live-selftest.service || true
 
 # Seed default HAProxy and named configs if package defaults are absent.
 if [ ! -f /etc/haproxy/haproxy.cfg ]; then
