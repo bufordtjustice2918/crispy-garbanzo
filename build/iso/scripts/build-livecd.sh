@@ -38,10 +38,16 @@ lb config \
 # Build Ubuntu LiveCD ISO with SquashFS root.
 lb build
 
-if [ ! -f live-image-${ARCH}.hybrid.iso ]; then
-  echo "expected ISO not found: live-image-${ARCH}.hybrid.iso" >&2
+SOURCE_ISO="live-image-${ARCH}.iso"
+if [ ! -f "${SOURCE_ISO}" ]; then
+  # Backward compatibility when using iso-hybrid mode.
+  SOURCE_ISO="live-image-${ARCH}.hybrid.iso"
+fi
+
+if [ ! -f "${SOURCE_ISO}" ]; then
+  echo "expected ISO not found: live-image-${ARCH}.iso or live-image-${ARCH}.hybrid.iso" >&2
   exit 1
 fi
 
-cp "live-image-${ARCH}.hybrid.iso" "${OUT_DIR}/${ISO_NAME}"
+cp "${SOURCE_ISO}" "${OUT_DIR}/${ISO_NAME}"
 echo "ISO created: ${OUT_DIR}/${ISO_NAME}"
