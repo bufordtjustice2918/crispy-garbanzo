@@ -162,6 +162,7 @@ All services run as non-root systemd units:
 - `clawgress-audit.service`
 - `clawgress-admin-api.service`
 - `clawgress-admin-ui.service`
+- `chrony.service` (or equivalent NTP unit) for synchronized control-plane time
 
 ### 7.3 Security Defaults
 - Ubuntu unattended security updates enabled.

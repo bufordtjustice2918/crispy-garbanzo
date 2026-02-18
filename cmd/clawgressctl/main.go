@@ -10,9 +10,12 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/bufordtjustice2918/crispy-garbanzo/internal/cmdmap"
 )
 
 func main() {
@@ -98,24 +101,28 @@ func runSet(args []string) {
 	file := fs.String("file", "candidate.json", "candidate configuration JSON file")
 	fs.Parse(args)
 
-	if fs.NArg() != 2 {
-		fatal("usage: clawgressctl set [--file candidate.json] <dot.path> <value>")
+	if fs.NArg() < 2 {
+		fatal("usage: clawgressctl set [--file candidate.json] <dot.path> <value> | set <tokens...> <value>")
 	}
 
-	keyPath := fs.Arg(0)
-	value := parseValue(fs.Arg(1))
+	keyPath, value := parseSetPathAndValue(fs.Args())
 
 	cfg, err := loadOrInitConfig(*file)
 	if err != nil {
 		fatalf("load config: %v", err)
 	}
-	setByPath(cfg, keyPath, value)
+	appendMode := isAppendPath(keyPath)
+	setByPath(cfg, keyPath, value, appendMode)
 
 	if err := writeJSONFile(*file, cfg); err != nil {
 		fatalf("write config: %v", err)
 	}
 
-	fmt.Printf("set %s in %s\n", keyPath, *file)
+	warning := ""
+	if !cmdmap.MatchSet(keyPath) {
+		warning = " (unmapped path: accepted but not in current VyOS-compatible catalog)"
+	}
+	fmt.Printf("set %s in %s%s\n", keyPath, *file, warning)
 }
 
 func runShow(args []string) {
@@ -127,6 +134,33 @@ func runShow(args []string) {
 	cfg, err := loadOrInitConfig(*file)
 	if err != nil {
 		fatalf("load config: %v", err)
+	}
+
+	rest := fs.Args()
+	if len(rest) > 0 {
+		switch strings.Join(rest, " ") {
+		case "commands":
+			prettyPrint(map[string]any{
+				"catalog":     cmdmap.Commands(),
+				"token_paths": cmdmap.TokenPaths,
+			})
+			return
+		case "configuration", "configuration json":
+			prettyPrint(cfg)
+			return
+		case "configuration commands":
+			lines := renderSetCommands(cfg, "", nil)
+			sort.Strings(lines)
+			for _, line := range lines {
+				fmt.Println(line)
+			}
+			return
+		}
+		path := strings.ReplaceAll(strings.Join(rest, "."), "-", "_")
+		if v, ok := getByPath(cfg, path); ok {
+			prettyPrint(map[string]any{"key": path, "value": v})
+			return
+		}
 	}
 
 	if *key == "" {
@@ -254,7 +288,7 @@ func writeJSONFile(path string, v any) error {
 	return os.WriteFile(path, append(data, '\n'), 0o644)
 }
 
-func setByPath(root map[string]any, path string, value any) {
+func setByPath(root map[string]any, path string, value any, appendMode bool) {
 	parts := strings.Split(path, ".")
 	m := root
 	for i := 0; i < len(parts)-1; i++ {
@@ -273,7 +307,22 @@ func setByPath(root map[string]any, path string, value any) {
 		}
 		m = child
 	}
-	m[parts[len(parts)-1]] = value
+	leaf := parts[len(parts)-1]
+	if !appendMode {
+		m[leaf] = value
+		return
+	}
+	existing, ok := m[leaf]
+	if !ok {
+		m[leaf] = []any{value}
+		return
+	}
+	switch cur := existing.(type) {
+	case []any:
+		m[leaf] = append(cur, value)
+	default:
+		m[leaf] = []any{cur, value}
+	}
 }
 
 func getByPath(root map[string]any, path string) (any, bool) {
@@ -294,6 +343,12 @@ func getByPath(root map[string]any, path string) (any, bool) {
 }
 
 func parseValue(raw string) any {
+	switch raw {
+	case "enable", "enabled", "on":
+		return true
+	case "disable", "disabled", "off":
+		return false
+	}
 	if raw == "true" {
 		return true
 	}
@@ -313,6 +368,72 @@ func parseValue(raw string) any {
 		}
 	}
 	return raw
+}
+
+func parseSetPathAndValue(args []string) (string, any) {
+	if len(args) == 2 && strings.Contains(args[0], ".") {
+		return args[0], parseValue(args[1])
+	}
+	if len(args) < 2 {
+		fatal("set command requires a path and value")
+	}
+	pathTokens := args[:len(args)-1]
+	valueRaw := args[len(args)-1]
+
+	// VyOS-style bool toggles may appear as terminal token.
+	if valueRaw == "enable" || valueRaw == "disable" {
+		return normalizePathTokens(pathTokens), parseValue(valueRaw)
+	}
+	return normalizePathTokens(pathTokens), parseValue(valueRaw)
+}
+
+func normalizePathTokens(tokens []string) string {
+	parts := make([]string, 0, len(tokens))
+	for _, t := range tokens {
+		t = strings.TrimSpace(t)
+		if t == "" {
+			continue
+		}
+		parts = append(parts, strings.ReplaceAll(t, "-", "_"))
+	}
+	return strings.Join(parts, ".")
+}
+
+func isAppendPath(path string) bool {
+	return strings.HasSuffix(path, ".server") ||
+		strings.HasSuffix(path, ".allow_from") ||
+		strings.HasSuffix(path, ".allow_domain") ||
+		strings.HasSuffix(path, ".deny_domain") ||
+		strings.HasSuffix(path, ".address")
+}
+
+func renderSetCommands(v any, prefix string, out []string) []string {
+	switch cur := v.(type) {
+	case map[string]any:
+		keys := make([]string, 0, len(cur))
+		for k := range cur {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, k := range keys {
+			nextPrefix := k
+			if prefix != "" {
+				nextPrefix = prefix + "." + k
+			}
+			out = renderSetCommands(cur[k], nextPrefix, out)
+		}
+	case []any:
+		for _, item := range cur {
+			out = append(out, "set "+dotPathToCommand(prefix)+" "+fmt.Sprint(item))
+		}
+	default:
+		out = append(out, "set "+dotPathToCommand(prefix)+" "+fmt.Sprint(cur))
+	}
+	return out
+}
+
+func dotPathToCommand(path string) string {
+	return strings.ReplaceAll(path, ".", " ")
 }
 
 func prettyPrint(v any) {

@@ -56,3 +56,7 @@ Ubuntu 24.04 LiveCD ISO build workflow and assets:
 - Workflow: `.github/workflows/build-iso.yml`
 - Build script: `build/iso/scripts/build-livecd.sh`
 - Details: `docs/ISO_WORKFLOW.md`
+
+## VyOS-Style Command Model
+- Command mapping reference: `docs/VYOS_COMMAND_MAPPING.md`
+- Token path catalog (source of truth): `internal/cmdmap/token_paths.go`
