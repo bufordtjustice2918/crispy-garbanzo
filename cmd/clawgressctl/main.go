@@ -92,16 +92,16 @@ func runConfigureMode(apiURL, actor, file string) {
 				fmt.Println("usage: set <tokens...> <value>")
 				continue
 			}
-			keyPath, value := parseSetPathAndValue(rest)
+			keyPath, value, err := parseSetPathAndValue(rest)
+			if err != nil {
+				fmt.Printf("error: %v\n", err)
+				continue
+			}
 			if err := applySetToFile(file, keyPath, value); err != nil {
 				fmt.Printf("error: %v\n", err)
 				continue
 			}
-			msg := fmt.Sprintf("set %s", keyPath)
-			if !cmdmap.MatchSet(keyPath) {
-				msg += " (unmapped path: accepted but not in current command catalog)"
-			}
-			fmt.Println(msg)
+			fmt.Printf("set %s\n", keyPath)
 		case "show":
 			if err := showFromFile(file, rest); err != nil {
 				fmt.Printf("error: %v\n", err)
@@ -185,16 +185,14 @@ func runSet(args []string) {
 		fatal("usage: clawgressctl set [--file candidate.json] <dot.path> <value> | set <tokens...> <value>")
 	}
 
-	keyPath, value := parseSetPathAndValue(fs.Args())
+	keyPath, value, err := parseSetPathAndValue(fs.Args())
+	if err != nil {
+		fatal(err.Error())
+	}
 	if err := applySetToFile(*file, keyPath, value); err != nil {
 		fatalf("write config: %v", err)
 	}
-
-	warning := ""
-	if !cmdmap.MatchSet(keyPath) {
-		warning = " (unmapped path: accepted but not in current command catalog)"
-	}
-	fmt.Printf("set %s in %s%s\n", keyPath, *file, warning)
+	fmt.Printf("set %s in %s\n", keyPath, *file)
 }
 
 func runShow(args []string) {
@@ -376,7 +374,7 @@ func applySetToFile(file, keyPath string, value any) error {
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)
 	}
-	appendMode := isAppendPath(keyPath)
+	appendMode := cmdmap.IsMultiPath(keyPath)
 	setByPath(cfg, keyPath, value, appendMode)
 	return writeJSONFile(file, cfg)
 }
@@ -463,41 +461,26 @@ func parseValue(raw string) any {
 	return raw
 }
 
-func parseSetPathAndValue(args []string) (string, any) {
+func parseSetPathAndValue(args []string) (string, any, error) {
 	if len(args) == 2 && strings.Contains(args[0], ".") {
-		return args[0], parseValue(args[1])
+		pathTokens := strings.Split(strings.ReplaceAll(args[0], "-", "_"), ".")
+		valueRaw := args[1]
+		path, _, err := cmdmap.ValidateSetTokens(pathTokens, valueRaw)
+		if err != nil {
+			return "", nil, fmt.Errorf("set command rejected: %w", err)
+		}
+		return path, parseValue(valueRaw), nil
 	}
 	if len(args) < 2 {
-		fatal("set command requires a path and value")
+		return "", nil, fmt.Errorf("set command requires a path and value")
 	}
 	pathTokens := args[:len(args)-1]
 	valueRaw := args[len(args)-1]
-
-	// Appliance-style bool toggles may appear as terminal token.
-	if valueRaw == "enable" || valueRaw == "disable" {
-		return normalizePathTokens(pathTokens), parseValue(valueRaw)
+	path, _, err := cmdmap.ValidateSetTokens(pathTokens, valueRaw)
+	if err != nil {
+		return "", nil, fmt.Errorf("set command rejected: %w", err)
 	}
-	return normalizePathTokens(pathTokens), parseValue(valueRaw)
-}
-
-func normalizePathTokens(tokens []string) string {
-	parts := make([]string, 0, len(tokens))
-	for _, t := range tokens {
-		t = strings.TrimSpace(t)
-		if t == "" {
-			continue
-		}
-		parts = append(parts, strings.ReplaceAll(t, "-", "_"))
-	}
-	return strings.Join(parts, ".")
-}
-
-func isAppendPath(path string) bool {
-	return strings.HasSuffix(path, ".server") ||
-		strings.HasSuffix(path, ".allow_from") ||
-		strings.HasSuffix(path, ".allow_domain") ||
-		strings.HasSuffix(path, ".deny_domain") ||
-		strings.HasSuffix(path, ".address")
+	return path, parseValue(valueRaw), nil
 }
 
 func renderSetCommands(v any, prefix string, out []string) []string {

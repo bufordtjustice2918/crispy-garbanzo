@@ -31,7 +31,9 @@ jobs:
       - name: Install test dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y jq nftables iproute2 conntrack curl python3
+          sudo apt-get install -y jq nftables iproute2 conntrack curl python3 \
+            live-build debootstrap xorriso squashfs-tools grub-pc-bin grub-efi-amd64-bin \
+            mtools dosfstools qemu-system-x86
 
       - name: Format check
         run: |
@@ -41,6 +43,10 @@ jobs:
         run: |
           go build ./...
 
+      - name: Command conformance (all mapped set paths)
+        run: |
+          ./tests/e2e/test_command_conformance.sh
+
       - name: Control-plane E2E (set/show/configure/commit)
         run: |
           ./tests/e2e/test_control_plane.sh
@@ -48,3 +54,25 @@ jobs:
       - name: Network E2E (NAT + firewall)
         run: |
           sudo ./tests/e2e/test_networking.sh
+
+      - name: Build ISO (Ubuntu 24.04)
+        env:
+          DISTRO: noble
+          ARCH: amd64
+          ISO_NAME: clawgress-noble-amd64.iso
+        run: |
+          ./build/iso/scripts/build-livecd.sh
+
+      - name: Boot ISO in QEMU and verify fully booted appliance
+        run: |
+          ./build/iso/scripts/boot-test.sh build/iso/out/clawgress-noble-amd64.iso 1200
+
+      - name: Upload E2E artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-artifacts
+          path: |
+            tests/e2e/out/command-conformance.json
+            build/iso/out/boot-test.log
+          if-no-files-found: error
+          retention-days: 14

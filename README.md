@@ -67,3 +67,4 @@ Ubuntu 24.04 LiveCD ISO build workflow and assets:
 ## End-to-End Testing
 - Workflow: `.github/workflows/e2e.yml`
 - Test details: `docs/E2E_TESTING.md`
+- Includes mandatory ISO boot validation in QEMU on runner
