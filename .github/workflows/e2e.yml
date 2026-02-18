@@ -61,7 +61,7 @@ jobs:
           ARCH: amd64
           ISO_NAME: clawgress-noble-amd64.iso
         run: |
-          ./build/iso/scripts/build-livecd.sh
+          sudo -E ./build/iso/scripts/build-livecd.sh
 
       - name: Boot ISO in QEMU and verify fully booted appliance
         run: |
