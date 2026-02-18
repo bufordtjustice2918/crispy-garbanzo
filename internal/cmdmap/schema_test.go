@@ -5,6 +5,14 @@ import (
 )
 
 func sampleForValue(token string) string {
+	if len(token) > 2 && token[0] == '<' && token[len(token)-1] == '>' {
+		inner := token[1 : len(token)-1]
+		for i := 0; i < len(inner); i++ {
+			if inner[i] == '|' {
+				return inner[:i]
+			}
+		}
+	}
 	switch token {
 	case "":
 		return "value"

@@ -20,6 +20,10 @@ def sample_for_token(tok: str) -> str:
 
 
 def sample_for_value(tok: str) -> str:
+    if tok.startswith("<") and tok.endswith(">"):
+        inner = tok[1:-1]
+        if "|" in inner:
+            return inner.split("|", 1)[0]
     m = {
         "": "value",
         "<name>": "edge",

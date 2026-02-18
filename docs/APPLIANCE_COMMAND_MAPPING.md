@@ -45,9 +45,11 @@ The focus is command semantics and transactional behavior (`configure` -> `commi
 ## Canonical Token Paths
 Canonical token-path definitions are versioned in code:
 - `internal/cmdmap/command_schema.json`
+- Imported/expanded via: `scripts/import_command_schema.py`
 
 CLI introspection:
 - `clawgressctl show commands`
+- Current schema size: `5220` set paths, `14` show paths.
 
 Path model:
 - `tokens[]` define fixed/variable command tree segments.
@@ -72,6 +74,12 @@ Path model:
 - `show configuration commands` renders deterministic `set ...` output.
 - `configure` stages candidate into control-plane revision.
 - `commit` atomically activates the staged revision.
+
+## Validation
+- Exhaustive schema parser validation: `GOCACHE=/tmp/go-build-cache go test ./...`
+- Key exhaustive tests:
+  - `internal/cmdmap/schema_test.go` validates every `set` token path/value pair.
+  - `cmd/clawgressctl/parser_test.go` validates CLI `set` parsing for every schema command.
 
 ## Non-Goals
 - No BGP/OSPF/MPLS routing command families in MVP.
