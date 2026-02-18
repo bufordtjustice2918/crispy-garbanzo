@@ -27,7 +27,6 @@ lb config \
   --distribution "${DISTRO}" \
   --architectures "${ARCH}" \
   --binary-images iso-hybrid \
-  --debian-installer live \
   --bootappend-live "boot=live components console=ttyS0,115200n8" \
   --archive-areas "main restricted universe multiverse" \
   --mirror-bootstrap "${MIRROR}" \
