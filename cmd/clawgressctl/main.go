@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"errors"
@@ -47,14 +48,91 @@ func runConfigure(args []string) {
 	fs := flag.NewFlagSet("configure", flag.ExitOnError)
 	apiURL := fs.String("url", "http://127.0.0.1:8080", "admin API base URL")
 	actor := fs.String("actor", "cli", "operator identity")
-	file := fs.String("file", "", "JSON file with staged changes")
+	file := fs.String("file", "", "non-interactive: JSON file to stage immediately")
+	candidate := fs.String("candidate", "candidate.json", "interactive mode candidate file")
 	fs.Parse(args)
 
-	if *file == "" {
-		fatal("--file is required")
+	// If positional args are present, treat as non-interactive stage from file.
+	// Otherwise enter appliance-style configure mode shell.
+	if fs.NArg() > 0 {
+		fatal("usage: configure [--url ...] [--actor ...] [--file changes.json] [--candidate candidate.json]")
 	}
 
-	changesData, err := os.ReadFile(*file)
+	// Backward-compatible non-interactive staging for automation.
+	if *file != "" {
+		resp := runConfigureOnce(*apiURL, *actor, *file)
+		prettyPrint(resp)
+		return
+	}
+	runConfigureMode(*apiURL, *actor, *candidate)
+}
+
+func runConfigureMode(apiURL, actor, file string) {
+	fmt.Printf("Entering configure mode (candidate: %s)\n", file)
+	fmt.Println("Use: set <path...> <value>, show [commands|configuration|configuration commands], commit, save, discard, exit")
+
+	scanner := bufio.NewScanner(os.Stdin)
+	for {
+		fmt.Print("clawgress(config)# ")
+		if !scanner.Scan() {
+			fmt.Println()
+			return
+		}
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
+		tokens := strings.Fields(line)
+		cmd := tokens[0]
+		rest := tokens[1:]
+
+		switch cmd {
+		case "set":
+			if len(rest) < 2 {
+				fmt.Println("usage: set <tokens...> <value>")
+				continue
+			}
+			keyPath, value := parseSetPathAndValue(rest)
+			if err := applySetToFile(file, keyPath, value); err != nil {
+				fmt.Printf("error: %v\n", err)
+				continue
+			}
+			msg := fmt.Sprintf("set %s", keyPath)
+			if !cmdmap.MatchSet(keyPath) {
+				msg += " (unmapped path: accepted but not in current VyOS-compatible catalog)"
+			}
+			fmt.Println(msg)
+		case "show":
+			if err := showFromFile(file, rest); err != nil {
+				fmt.Printf("error: %v\n", err)
+			}
+		case "save":
+			resp := runConfigureOnce(apiURL, actor, file)
+			prettyPrint(resp)
+		case "commit":
+			stage := runConfigureOnce(apiURL, actor, file)
+			respObj, _ := stage["response"].(map[string]any)
+			rev, _ := respObj["revision_id"].(string)
+			commit := runCommitOnce(apiURL, actor, rev)
+			prettyPrint(commit)
+		case "discard":
+			if err := os.Remove(file); err != nil && !errors.Is(err, os.ErrNotExist) {
+				fmt.Printf("error: %v\n", err)
+			} else {
+				fmt.Println("candidate configuration discarded")
+			}
+		case "exit", "quit":
+			return
+		case "help", "?":
+			fmt.Println("commands: set, show, save, commit, discard, exit")
+		default:
+			fmt.Printf("unknown command: %s\n", cmd)
+		}
+	}
+}
+
+func runConfigureOnce(apiURL, actor, file string) map[string]any {
+	changesData, err := os.ReadFile(file)
 	if err != nil {
 		fatalf("read --file: %v", err)
 	}
@@ -65,11 +143,10 @@ func runConfigure(args []string) {
 	}
 
 	body := map[string]any{
-		"actor":   *actor,
+		"actor":   actor,
 		"changes": changes,
 	}
-	resp := doJSON(http.MethodPost, *apiURL+"/v1/opmode/configure", body)
-	prettyPrint(resp)
+	return doJSON(http.MethodPost, apiURL+"/v1/opmode/configure", body)
 }
 
 func runCommit(args []string) {
@@ -79,13 +156,16 @@ func runCommit(args []string) {
 	expected := fs.String("expected-revision", "", "optional expected staged revision ID")
 	fs.Parse(args)
 
-	body := map[string]any{"actor": *actor}
-	if *expected != "" {
-		body["expected_revision_id"] = *expected
-	}
-
-	resp := doJSON(http.MethodPost, *apiURL+"/v1/opmode/commit", body)
+	resp := runCommitOnce(*apiURL, *actor, *expected)
 	prettyPrint(resp)
+}
+
+func runCommitOnce(apiURL, actor, expected string) map[string]any {
+	body := map[string]any{"actor": actor}
+	if expected != "" {
+		body["expected_revision_id"] = expected
+	}
+	return doJSON(http.MethodPost, apiURL+"/v1/opmode/commit", body)
 }
 
 func runState(args []string) {
@@ -106,15 +186,7 @@ func runSet(args []string) {
 	}
 
 	keyPath, value := parseSetPathAndValue(fs.Args())
-
-	cfg, err := loadOrInitConfig(*file)
-	if err != nil {
-		fatalf("load config: %v", err)
-	}
-	appendMode := isAppendPath(keyPath)
-	setByPath(cfg, keyPath, value, appendMode)
-
-	if err := writeJSONFile(*file, cfg); err != nil {
+	if err := applySetToFile(*file, keyPath, value); err != nil {
 		fatalf("write config: %v", err)
 	}
 
@@ -131,12 +203,22 @@ func runShow(args []string) {
 	key := fs.String("key", "", "optional dot.path key")
 	fs.Parse(args)
 
-	cfg, err := loadOrInitConfig(*file)
-	if err != nil {
-		fatalf("load config: %v", err)
+	rest := append([]string{}, fs.Args()...)
+	if *key != "" && len(rest) == 0 {
+		rest = []string{*key}
 	}
 
-	rest := fs.Args()
+	if err := showFromFile(*file, rest); err != nil {
+		fatal(err.Error())
+	}
+}
+
+func showFromFile(file string, rest []string) error {
+	cfg, err := loadOrInitConfig(file)
+	if err != nil {
+		return fmt.Errorf("load config: %w", err)
+	}
+
 	if len(rest) > 0 {
 		switch strings.Join(rest, " ") {
 		case "commands":
@@ -144,35 +226,36 @@ func runShow(args []string) {
 				"catalog":     cmdmap.Commands(),
 				"token_paths": cmdmap.TokenPaths,
 			})
-			return
+			return nil
 		case "configuration", "configuration json":
 			prettyPrint(cfg)
-			return
+			return nil
 		case "configuration commands":
 			lines := renderSetCommands(cfg, "", nil)
 			sort.Strings(lines)
 			for _, line := range lines {
 				fmt.Println(line)
 			}
-			return
+			return nil
 		}
 		path := strings.ReplaceAll(strings.Join(rest, "."), "-", "_")
 		if v, ok := getByPath(cfg, path); ok {
 			prettyPrint(map[string]any{"key": path, "value": v})
-			return
+			return nil
 		}
 	}
 
-	if *key == "" {
+	if len(rest) == 0 {
 		prettyPrint(cfg)
-		return
+		return nil
 	}
-
-	v, ok := getByPath(cfg, *key)
+	path := strings.ReplaceAll(strings.Join(rest, "."), "-", "_")
+	v, ok := getByPath(cfg, path)
 	if !ok {
-		fatalf("key not found: %s", *key)
+		return fmt.Errorf("key not found: %s", path)
 	}
-	prettyPrint(map[string]any{"key": *key, "value": v})
+	prettyPrint(map[string]any{"key": path, "value": v})
+	return nil
 }
 
 func runInstall(args []string) {
@@ -286,6 +369,16 @@ func writeJSONFile(path string, v any) error {
 		return err
 	}
 	return os.WriteFile(path, append(data, '\n'), 0o644)
+}
+
+func applySetToFile(file, keyPath string, value any) error {
+	cfg, err := loadOrInitConfig(file)
+	if err != nil {
+		return fmt.Errorf("load config: %w", err)
+	}
+	appendMode := isAppendPath(keyPath)
+	setByPath(cfg, keyPath, value, appendMode)
+	return writeJSONFile(file, cfg)
 }
 
 func setByPath(root map[string]any, path string, value any, appendMode bool) {
