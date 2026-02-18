@@ -15,6 +15,8 @@ WAN_NS_IF="clg_wan_n"
 BACKUP_RULESET="$(mktemp)"
 OLD_RPF_ALL=""
 OLD_RPF_DEFAULT=""
+IPTABLES_BACKUP="$(mktemp)"
+HAS_IPTABLES=0
 
 cleanup() {
   set +e
@@ -36,6 +38,10 @@ cleanup() {
   if [[ -n "${OLD_RPF_DEFAULT}" ]]; then
     sysctl -w net.ipv4.conf.default.rp_filter="${OLD_RPF_DEFAULT}" >/dev/null 2>&1 || true
   fi
+  if [[ "${HAS_IPTABLES}" -eq 1 ]]; then
+    iptables-restore < "${IPTABLES_BACKUP}" >/dev/null 2>&1 || true
+  fi
+  rm -f "${IPTABLES_BACKUP}"
 }
 trap cleanup EXIT
 
@@ -46,6 +52,11 @@ OLD_RPF_DEFAULT="$(sysctl -n net.ipv4.conf.default.rp_filter)"
 sysctl -w net.ipv4.ip_forward=1 >/dev/null
 sysctl -w net.ipv4.conf.all.rp_filter=0 >/dev/null
 sysctl -w net.ipv4.conf.default.rp_filter=0 >/dev/null
+
+if command -v iptables >/dev/null 2>&1 && command -v iptables-save >/dev/null 2>&1; then
+  HAS_IPTABLES=1
+  iptables-save > "${IPTABLES_BACKUP}"
+fi
 
 ip netns add "${LAN_NS}"
 ip netns add "${WAN_NS}"
@@ -60,6 +71,12 @@ ip addr add 10.10.0.1/24 dev "${LAN_HOST_IF}"
 ip addr add 172.16.0.1/24 dev "${WAN_HOST_IF}"
 ip link set "${LAN_HOST_IF}" up
 ip link set "${WAN_HOST_IF}" up
+
+if [[ "${HAS_IPTABLES}" -eq 1 ]]; then
+  iptables -I FORWARD 1 -i "${LAN_HOST_IF}" -o "${WAN_HOST_IF}" -j ACCEPT
+  iptables -I FORWARD 1 -i "${WAN_HOST_IF}" -o "${LAN_HOST_IF}" -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+  iptables -t nat -I POSTROUTING 1 -s 10.10.0.0/24 -o "${WAN_HOST_IF}" -j MASQUERADE
+fi
 
 ip netns exec "${LAN_NS}" ip addr add 10.10.0.2/24 dev "${LAN_NS_IF}"
 ip netns exec "${LAN_NS}" ip link set lo up
