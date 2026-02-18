@@ -56,10 +56,13 @@ def main() -> int:
     ap.add_argument("--schema", required=True)
     ap.add_argument("--binary", required=True)
     ap.add_argument("--report", required=True)
+    ap.add_argument("--limit", type=int, default=0)
     args = ap.parse_args()
 
     schema = json.loads(Path(args.schema).read_text())
     set_paths = [x for x in schema if x.get("kind") == "set"]
+    if args.limit and args.limit > 0:
+        set_paths = set_paths[: args.limit]
 
     report = {
         "timestamp": datetime.now(timezone.utc).isoformat(),

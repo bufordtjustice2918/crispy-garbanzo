@@ -43,7 +43,7 @@ jobs:
         run: |
           go build ./...
 
-      - name: Command conformance (all mapped set paths)
+      - name: Command conformance (exhaustive parser + CLI smoke)
         run: |
           ./tests/e2e/test_command_conformance.sh
 

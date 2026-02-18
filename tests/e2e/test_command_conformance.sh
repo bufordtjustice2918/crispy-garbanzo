@@ -12,10 +12,17 @@ cleanup() {
 trap cleanup EXIT
 
 cd "${ROOT_DIR}"
+
+# Exhaustive in-process parser/schema validation for all mapped commands.
+GOCACHE="${GOCACHE:-/tmp/go-build-cache}" go test ./cmd/clawgressctl ./internal/cmdmap
+
+# CLI subprocess smoke over a bounded subset to keep CI runtime stable.
 go build -o "${TMP_DIR}/clawgressctl" ./cmd/clawgressctl
+LIMIT="${COMMAND_CONFORMANCE_LIMIT:-300}"
 python3 ./tests/e2e/command_conformance.py \
   --schema ./internal/cmdmap/command_schema.json \
   --binary "${TMP_DIR}/clawgressctl" \
+  --limit "${LIMIT}" \
   --report "${REPORT_FILE}"
 
 echo "command conformance report: ${REPORT_FILE}"
