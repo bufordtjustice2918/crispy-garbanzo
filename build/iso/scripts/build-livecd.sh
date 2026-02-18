@@ -33,8 +33,7 @@ lb config \
   --mirror-bootstrap "${MIRROR}" \
   --mirror-chroot "${MIRROR}" \
   --mirror-binary "${MIRROR}" \
-  --mirror-binary-security "${SECURITY_MIRROR}" \
-  --updates true
+  --mirror-binary-security "${SECURITY_MIRROR}"
 
 # Build Ubuntu LiveCD ISO with SquashFS root.
 lb build

@@ -13,6 +13,8 @@ LAN_NS_IF="clg_lan_n"
 WAN_HOST_IF="clg_wan_h"
 WAN_NS_IF="clg_wan_n"
 BACKUP_RULESET="$(mktemp)"
+OLD_RPF_ALL=""
+OLD_RPF_DEFAULT=""
 
 cleanup() {
   set +e
@@ -28,12 +30,22 @@ cleanup() {
   if [[ -n "${OLD_IP_FORWARD:-}" ]]; then
     sysctl -w net.ipv4.ip_forward="${OLD_IP_FORWARD}" >/dev/null 2>&1 || true
   fi
+  if [[ -n "${OLD_RPF_ALL}" ]]; then
+    sysctl -w net.ipv4.conf.all.rp_filter="${OLD_RPF_ALL}" >/dev/null 2>&1 || true
+  fi
+  if [[ -n "${OLD_RPF_DEFAULT}" ]]; then
+    sysctl -w net.ipv4.conf.default.rp_filter="${OLD_RPF_DEFAULT}" >/dev/null 2>&1 || true
+  fi
 }
 trap cleanup EXIT
 
 nft list ruleset > "${BACKUP_RULESET}"
 OLD_IP_FORWARD="$(sysctl -n net.ipv4.ip_forward)"
+OLD_RPF_ALL="$(sysctl -n net.ipv4.conf.all.rp_filter)"
+OLD_RPF_DEFAULT="$(sysctl -n net.ipv4.conf.default.rp_filter)"
 sysctl -w net.ipv4.ip_forward=1 >/dev/null
+sysctl -w net.ipv4.conf.all.rp_filter=0 >/dev/null
+sysctl -w net.ipv4.conf.default.rp_filter=0 >/dev/null
 
 ip netns add "${LAN_NS}"
 ip netns add "${WAN_NS}"
@@ -96,9 +108,24 @@ s.close()
 PY
 SERVER_PID=$!
 
-sleep 0.5
+for _ in {1..30}; do
+  if ip netns exec "${WAN_NS}" ss -ltn | grep -q ":18080"; then
+    break
+  fi
+  sleep 0.2
+done
 
-SRC_IP="$(ip netns exec "${LAN_NS}" curl -fsS --max-time 5 http://172.16.0.2:18080)"
+SRC_IP=""
+for _ in {1..8}; do
+  if SRC_IP="$(ip netns exec "${LAN_NS}" curl -fsS --max-time 5 http://172.16.0.2:18080 2>/dev/null)"; then
+    break
+  fi
+  sleep 0.5
+done
+if [[ -z "${SRC_IP}" ]]; then
+  echo "NAT test failed: curl did not succeed after retries" >&2
+  exit 1
+fi
 if [[ "${SRC_IP}" != "172.16.0.1" ]]; then
   echo "NAT test failed: expected source 172.16.0.1, got ${SRC_IP}" >&2
   exit 1
