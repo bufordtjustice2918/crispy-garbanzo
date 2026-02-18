@@ -3,11 +3,16 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"time"
 )
 
 func main() {
@@ -23,6 +28,12 @@ func main() {
 		runCommit(os.Args[2:])
 	case "state":
 		runState(os.Args[2:])
+	case "set":
+		runSet(os.Args[2:])
+	case "show":
+		runShow(os.Args[2:])
+	case "install":
+		runInstall(os.Args[2:])
 	default:
 		usage()
 		os.Exit(1)
@@ -82,6 +93,87 @@ func runState(args []string) {
 	prettyPrint(resp)
 }
 
+func runSet(args []string) {
+	fs := flag.NewFlagSet("set", flag.ExitOnError)
+	file := fs.String("file", "candidate.json", "candidate configuration JSON file")
+	fs.Parse(args)
+
+	if fs.NArg() != 2 {
+		fatal("usage: clawgressctl set [--file candidate.json] <dot.path> <value>")
+	}
+
+	keyPath := fs.Arg(0)
+	value := parseValue(fs.Arg(1))
+
+	cfg, err := loadOrInitConfig(*file)
+	if err != nil {
+		fatalf("load config: %v", err)
+	}
+	setByPath(cfg, keyPath, value)
+
+	if err := writeJSONFile(*file, cfg); err != nil {
+		fatalf("write config: %v", err)
+	}
+
+	fmt.Printf("set %s in %s\n", keyPath, *file)
+}
+
+func runShow(args []string) {
+	fs := flag.NewFlagSet("show", flag.ExitOnError)
+	file := fs.String("file", "candidate.json", "candidate configuration JSON file")
+	key := fs.String("key", "", "optional dot.path key")
+	fs.Parse(args)
+
+	cfg, err := loadOrInitConfig(*file)
+	if err != nil {
+		fatalf("load config: %v", err)
+	}
+
+	if *key == "" {
+		prettyPrint(cfg)
+		return
+	}
+
+	v, ok := getByPath(cfg, *key)
+	if !ok {
+		fatalf("key not found: %s", *key)
+	}
+	prettyPrint(map[string]any{"key": *key, "value": v})
+}
+
+func runInstall(args []string) {
+	fs := flag.NewFlagSet("install", flag.ExitOnError)
+	targetDisk := fs.String("target-disk", "", "install target disk (example: /dev/sda)")
+	hostname := fs.String("hostname", "clawgress", "target hostname")
+	autoReboot := fs.Bool("reboot", false, "reboot after install")
+	yes := fs.Bool("yes", false, "confirm install plan")
+	fs.Parse(args)
+
+	if *targetDisk == "" {
+		fatal("--target-disk is required")
+	}
+
+	plan := map[string]any{
+		"mode":                  "livecd-to-disk",
+		"boot_source":           "squashfs",
+		"target_disk":           *targetDisk,
+		"hostname":              *hostname,
+		"auto_reboot":           *autoReboot,
+		"confirmed":             *yes,
+		"status":                "planned",
+		"requires_root":         true,
+		"timestamp":             time.Now().UTC().Format(time.RFC3339),
+		"next_step":             "sudo clawgress-install --apply <generated-plan>",
+		"mvp_note":              "Installer execution is planned in MVP scope; this command currently emits a validated plan.",
+		"transactional_profile": "commit/configure",
+	}
+	prettyPrint(plan)
+
+	if !*yes {
+		fmt.Println("pass --yes to confirm this installation plan")
+	}
+}
+
 func doJSON(method, url string, payload any) map[string]any {
 	var body io.Reader
 	if payload != nil {
@@ -128,6 +220,101 @@ func doJSON(method, url string, payload any) map[string]any {
 	return out
 }
 
+func loadOrInitConfig(path string) (map[string]any, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return map[string]any{}, nil
+		}
+		return nil, err
+	}
+	if len(data) == 0 {
+		return map[string]any{}, nil
+	}
+	var cfg map[string]any
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		return nil, err
+	}
+	if cfg == nil {
+		cfg = map[string]any{}
+	}
+	return cfg, nil
+}
+
+func writeJSONFile(path string, v any) error {
+	if dir := filepath.Dir(path); dir != "." {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return err
+		}
+	}
+	data, err := json.MarshalIndent(v, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, append(data, '\n'), 0o644)
+}
+
+func setByPath(root map[string]any, path string, value any) {
+	parts := strings.Split(path, ".")
+	m := root
+	for i := 0; i < len(parts)-1; i++ {
+		key := parts[i]
+		next, ok := m[key]
+		if !ok {
+			child := map[string]any{}
+			m[key] = child
+			m = child
+			continue
+		}
+		child, ok := next.(map[string]any)
+		if !ok {
+			child = map[string]any{}
+			m[key] = child
+		}
+		m = child
+	}
+	m[parts[len(parts)-1]] = value
+}
+
+func getByPath(root map[string]any, path string) (any, bool) {
+	parts := strings.Split(path, ".")
+	var cur any = root
+	for _, part := range parts {
+		m, ok := cur.(map[string]any)
+		if !ok {
+			return nil, false
+		}
+		next, ok := m[part]
+		if !ok {
+			return nil, false
+		}
+		cur = next
+	}
+	return cur, true
+}
+
+func parseValue(raw string) any {
+	if raw == "true" {
+		return true
+	}
+	if raw == "false" {
+		return false
+	}
+	if i, err := strconv.Atoi(raw); err == nil {
+		return i
+	}
+	if f, err := strconv.ParseFloat(raw, 64); err == nil {
+		return f
+	}
+	if strings.HasPrefix(raw, "{") || strings.HasPrefix(raw, "[") {
+		var v any
+		if err := json.Unmarshal([]byte(raw), &v); err == nil {
+			return v
+		}
+	}
+	return raw
+}
+
 func prettyPrint(v any) {
 	data, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
@@ -137,7 +324,7 @@ func prettyPrint(v any) {
 }
 
 func usage() {
-	fmt.Println("clawgressctl <configure|commit|state> [flags]")
+	fmt.Println("clawgressctl <configure|commit|state|set|show|install> [flags]")
 }
 
 func fatal(msg string) {

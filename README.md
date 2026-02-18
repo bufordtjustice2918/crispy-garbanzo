@@ -27,6 +27,22 @@ go run ./cmd/clawgressctl commit --actor kavansmith
 go run ./cmd/clawgressctl state
 ```
 
+Appliance-style candidate config workflow:
+
+```bash
+go run ./cmd/clawgressctl set gateway.mode explicit_proxy
+go run ./cmd/clawgressctl set quotas.agent_alpha.rps_limit 10
+go run ./cmd/clawgressctl show
+go run ./cmd/clawgressctl configure --file candidate.json --actor kavansmith
+go run ./cmd/clawgressctl commit --actor kavansmith
+```
+
+Live-media install planning command:
+
+```bash
+go run ./cmd/clawgressctl install --target-disk /dev/sda --hostname clawgress-gw --yes
+```
+
 ## nftables Baseline
 MVPv1 requires `nftables` for transparent gateway enforcement.
 

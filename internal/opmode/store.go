@@ -51,10 +51,10 @@ type CommitRecord struct {
 }
 
 type StateView struct {
-	Staged      *Revision    `json:"staged,omitempty"`
-	Active      *Revision    `json:"active,omitempty"`
+	Staged      *Revision     `json:"staged,omitempty"`
+	Active      *Revision     `json:"active,omitempty"`
 	LastCommit  *CommitRecord `json:"last_commit,omitempty"`
-	HistorySize int          `json:"history_size"`
+	HistorySize int           `json:"history_size"`
 }
 
 type Store struct {

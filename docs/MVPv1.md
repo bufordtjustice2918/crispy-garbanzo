@@ -57,6 +57,11 @@ Success means a team can deploy Clawgress, route agent egress through it, enforc
 - Admin API for agents, policies, quotas, and log query.
 - Basic web UI for agent list, policy list, and recent traffic decisions.
 
+6. Appliance-style operations UX
+- CLI command model aligned with network-appliance workflows.
+- Transactional `set`/`show` operational commands backed by `configure`/`commit`.
+- Installer command path for live-media to disk installation.
+
 ### 3.2 Out of Scope
 - Full outbound DLP redaction pipeline.
 - In-line anomaly model blocking.
@@ -76,6 +81,12 @@ Success means a team can deploy Clawgress, route agent egress through it, enforc
 - Traffic is routed/NATed through Clawgress.
 - `nftables` is the required packet filter/NAT framework for this mode.
 - Used for VM subnet egress control.
+
+### 4.3 LiveCD Appliance Mode (SquashFS Boot)
+- System boots read-only root from SquashFS image (VyOS-style operator experience).
+- Runtime writes go to ephemeral overlay until explicit install.
+- Includes first-boot CLI access for `set`, `show`, `configure`, `commit`, and `install`.
+- Supports transition from live media to disk install with preserved committed config.
 
 ## 5. Component Plan
 
@@ -126,6 +137,13 @@ MVPv1 includes a first-party CLI and API surface with explicit operational modes
 - Control-plane change artifacts are persisted in this repo for traceability.
 - Default workflow for this project: commit generated config/spec updates after successful `opmode=commit`.
 - Commit metadata includes revision ID and operator identity.
+
+### 6.5 CLI Command Model
+- `set <path> <value>` updates candidate configuration.
+- `show` displays candidate or active state.
+- `configure` pushes candidate changes to staged control-plane revision.
+- `commit` atomically activates staged revision.
+- `install --target-disk <disk>` executes live-media to disk installation workflow.
 
 ## 7. Ubuntu 24.04 System Layout
 
@@ -226,11 +244,13 @@ All services run as non-root systemd units:
 - Repo/service scaffolding and CI.
 - Ubuntu 24.04 packaging and systemd templates.
 - Identity schema and auth verification implementation.
+- CLI parser for `set`/`show` command families.
 
 ### Phase 2 (Weeks 4-6): Enforcement Core
 - Gateway integration with policy engine.
 - Policy bundle compile, sign, and distribution.
 - Deterministic decision tracing and audit events.
+- SquashFS live boot image build pipeline and boot test harness.
 
 ### Phase 3 (Weeks 7-9): Quotas and Control Plane
 - Per-agent rate limit engine.
@@ -241,6 +261,7 @@ All services run as non-root systemd units:
 - Load, failure, and recovery testing.
 - Security baseline validation on Ubuntu 24.04.
 - MVP release candidate and operator runbook.
+- Disk installer (`install`) validation from live mode to persistent system.
 
 ## 12. Testing Matrix
 - Unit: policy evaluator, identity resolver, quota logic.
@@ -252,6 +273,7 @@ All services run as non-root systemd units:
 ## 13. Release Artifacts
 - Versioned binaries or container images for all services.
 - Ubuntu 24.04 install guide and operations runbook.
+- LiveCD ISO with SquashFS root filesystem.
 - Default starter policy bundle.
 - Admin API reference.
 - Dashboard and log query examples.
