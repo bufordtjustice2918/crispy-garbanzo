@@ -16,6 +16,7 @@ func main() {
 	stateDir := getenv("CLAWGRESS_STATE_DIR", "state")
 	listenAddr := getenv("CLAWGRESS_ADMIN_LISTEN", ":8080")
 	nftApply := getenvBool("CLAWGRESS_NFT_APPLY", true)
+	defaultOpsMode := getenv("CLAWGRESS_OPS_MODE", enforcer.OpsModeDryRun)
 
 	store, err := opmode.NewStore(stateDir)
 	if err != nil {
@@ -86,7 +87,24 @@ func main() {
 			return
 		}
 		if state.Active != nil {
-			resp.OpsPlan = enforcer.BuildOpsPlan(state.Active.Changes)
+			ops := enforcer.BuildOpsPlan(state.Active.Changes)
+			resp.OpsPlan = ops
+			mode := req.OpsMode
+			if mode == "" {
+				mode = defaultOpsMode
+			}
+			resp.OpsMode = enforcer.NormalizeOpsMode(mode)
+			if resp.OpsMode == "" {
+				resp.OpsMode = enforcer.OpsModeDryRun
+			}
+			opsResult, err := enforcer.ExecuteOpsPlan(ops, resp.OpsMode)
+			if err != nil {
+				resp.OpsStatus = "error"
+				resp.OpsError = err.Error()
+				writeJSON(w, http.StatusInternalServerError, resp)
+				return
+			}
+			resp.OpsStatus = opsResult.Mode
 		}
 
 		if nftApply {

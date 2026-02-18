@@ -24,6 +24,8 @@ In a second terminal, stage and commit configuration transactionally:
 go run ./cmd/clawgressctl configure --file examples/configure.sample.json --actor kavansmith
 go run ./cmd/clawgressctl state
 go run ./cmd/clawgressctl commit --actor kavansmith
+# explicit apply mode (default is --ops-mode dry-run)
+go run ./cmd/clawgressctl commit --actor kavansmith --ops-mode apply
 go run ./cmd/clawgressctl state
 ```
 

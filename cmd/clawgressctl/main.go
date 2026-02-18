@@ -114,7 +114,7 @@ func runConfigureMode(apiURL, actor, file string) {
 			stage := runConfigureOnce(apiURL, actor, file)
 			respObj, _ := stage["response"].(map[string]any)
 			rev, _ := respObj["revision_id"].(string)
-			commit := runCommitOnce(apiURL, actor, rev)
+			commit := runCommitOnce(apiURL, actor, rev, "dry-run")
 			prettyPrint(commit)
 		case "discard":
 			if err := os.Remove(file); err != nil && !errors.Is(err, os.ErrNotExist) {
@@ -155,16 +155,20 @@ func runCommit(args []string) {
 	apiURL := fs.String("url", "http://127.0.0.1:8080", "admin API base URL")
 	actor := fs.String("actor", "cli", "operator identity")
 	expected := fs.String("expected-revision", "", "optional expected staged revision ID")
+	opsMode := fs.String("ops-mode", "dry-run", "ops execution mode: dry-run|apply")
 	fs.Parse(args)
 
-	resp := runCommitOnce(*apiURL, *actor, *expected)
+	resp := runCommitOnce(*apiURL, *actor, *expected, *opsMode)
 	prettyPrint(resp)
 }
 
-func runCommitOnce(apiURL, actor, expected string) map[string]any {
+func runCommitOnce(apiURL, actor, expected, opsMode string) map[string]any {
 	body := map[string]any{"actor": actor}
 	if expected != "" {
 		body["expected_revision_id"] = expected
+	}
+	if strings.TrimSpace(opsMode) != "" {
+		body["ops_mode"] = opsMode
 	}
 	return doJSONWithSpinner(http.MethodPost, apiURL+"/v1/opmode/commit", body, "Committing configuration")
 }

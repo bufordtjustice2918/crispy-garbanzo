@@ -27,6 +27,7 @@ type ConfigureResponse struct {
 type CommitRequest struct {
 	Actor              string `json:"actor"`
 	ExpectedRevisionID string `json:"expected_revision_id,omitempty"`
+	OpsMode            string `json:"ops_mode,omitempty"`
 }
 
 type CommitResponse struct {
@@ -38,6 +39,9 @@ type CommitResponse struct {
 	NftError   string    `json:"nft_error,omitempty"`
 	NftRules   string    `json:"nft_rules,omitempty"`
 	OpsPlan    any       `json:"ops_plan,omitempty"`
+	OpsMode    string    `json:"ops_mode,omitempty"`
+	OpsStatus  string    `json:"ops_status,omitempty"`
+	OpsError   string    `json:"ops_error,omitempty"`
 }
 
 type Revision struct {

@@ -63,6 +63,9 @@ Path model:
 
 ## Commit-Time Operation Plan
 - The commit API now returns `ops_plan`, a backend action plan derived from staged commands.
+- Commit request supports `ops_mode`:
+  - `dry-run` (default): validate/plan only, no OS commands executed.
+  - `apply`: execute allowed `write`, `systemctl`, `ip`, and `nft` actions transactionally.
 - Example for `set interfaces ethernet eth0 address dhcp`:
   - write `/run/dhclient/dhclient_eth0.conf`
   - write `/run/systemd/system/dhclient@eth0.service.d/10-override.conf`
