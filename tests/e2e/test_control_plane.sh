@@ -19,7 +19,7 @@ cd "${ROOT_DIR}"
 go build -o "${TMP_DIR}/clawgress-admin-api" ./cmd/clawgress-admin-api
 go build -o "${TMP_DIR}/clawgressctl" ./cmd/clawgressctl
 
-CLAWGRESS_STATE_DIR="${STATE_DIR}" CLAWGRESS_ADMIN_LISTEN=":18080" "${TMP_DIR}/clawgress-admin-api" >/tmp/clawgress-admin-api.log 2>&1 &
+CLAWGRESS_STATE_DIR="${STATE_DIR}" CLAWGRESS_ADMIN_LISTEN=":18080" CLAWGRESS_NFT_APPLY=false "${TMP_DIR}/clawgress-admin-api" >/tmp/clawgress-admin-api.log 2>&1 &
 API_PID=$!
 
 for _ in {1..30}; do

@@ -14,6 +14,7 @@
 
 Script:
 - `tests/e2e/test_control_plane.sh`
+Note: this script sets `CLAWGRESS_NFT_APPLY=false` because it validates control-plane flow without requiring root nft mutation.
 
 2. Network dataplane behavior
 - Source NAT masquerade for LAN -> WAN path

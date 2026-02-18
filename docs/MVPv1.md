@@ -128,6 +128,7 @@ MVPv1 includes a first-party CLI and API surface with explicit operational modes
 - Behavior: atomically publishes a signed policy/config bundle to gateways.
 - Output: returns commit ID, applied revision, timestamp, and rollout status.
 - Safety: all-or-nothing commit semantics with rollback to last-known-good revision on failure.
+- Enforcement: commit applies rendered `nftables` ruleset on gateway hosts when `CLAWGRESS_NFT_APPLY=true` (default).
 
 ### 6.3 API Access
 - All control-plane operations are exposed via authenticated REST APIs.

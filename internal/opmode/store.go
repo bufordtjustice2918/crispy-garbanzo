@@ -34,6 +34,9 @@ type CommitResponse struct {
 	RevisionID string    `json:"revision_id"`
 	Status     string    `json:"status"`
 	Timestamp  time.Time `json:"timestamp"`
+	NftApply   string    `json:"nft_apply,omitempty"`
+	NftError   string    `json:"nft_error,omitempty"`
+	NftRules   string    `json:"nft_rules,omitempty"`
 }
 
 type Revision struct {

@@ -6,13 +6,16 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 
+	"github.com/bufordtjustice2918/crispy-garbanzo/internal/enforcer"
 	"github.com/bufordtjustice2918/crispy-garbanzo/internal/opmode"
 )
 
 func main() {
 	stateDir := getenv("CLAWGRESS_STATE_DIR", "state")
 	listenAddr := getenv("CLAWGRESS_ADMIN_LISTEN", ":8080")
+	nftApply := getenvBool("CLAWGRESS_NFT_APPLY", true)
 
 	store, err := opmode.NewStore(stateDir)
 	if err != nil {
@@ -75,6 +78,33 @@ func main() {
 			}
 			return
 		}
+
+		if nftApply {
+			state, err := store.State()
+			if err != nil {
+				resp.NftApply = "error"
+				resp.NftError = err.Error()
+				writeJSON(w, http.StatusInternalServerError, resp)
+				return
+			}
+			if state.Active == nil {
+				resp.NftApply = "error"
+				resp.NftError = "active revision missing after commit"
+				writeJSON(w, http.StatusInternalServerError, resp)
+				return
+			}
+			applyResult, err := enforcer.ApplyNftables(stateDir, *state.Active, true)
+			if err != nil {
+				resp.NftApply = "error"
+				resp.NftError = err.Error()
+				writeJSON(w, http.StatusInternalServerError, resp)
+				return
+			}
+			resp.NftApply = "applied"
+			resp.NftRules = applyResult.RulesPath
+		} else {
+			resp.NftApply = "disabled"
+		}
 		writeJSON(w, http.StatusOK, resp)
 	})
 
@@ -110,4 +140,16 @@ func getenv(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+func getenvBool(key string, fallback bool) bool {
+	v := os.Getenv(key)
+	if v == "" {
+		return fallback
+	}
+	b, err := strconv.ParseBool(v)
+	if err != nil {
+		return fallback
+	}
+	return b
 }
