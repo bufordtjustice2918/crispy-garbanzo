@@ -17,7 +17,10 @@ func BuildOpsPlan(changes map[string]any) []Operation {
 	ops = append(ops, buildInterfaceOps(changes)...)
 	ops = append(ops, buildSystemOps(changes)...)
 	ops = append(ops, buildServiceOps(changes)...)
-	return ops
+	ops = append(ops, buildFirewallNatOps(changes)...)
+	ops = append(ops, buildPolicyOps(changes)...)
+	ops = append(ops, buildFamilyFallbackOps(changes)...)
+	return dedupeOps(ops)
 }
 
 func buildInterfaceOps(changes map[string]any) []Operation {
@@ -39,29 +42,35 @@ func buildInterfaceOps(changes map[string]any) []Operation {
 		}
 		addrRaw := m["address"]
 		if hasDHCPAddress(addrRaw) {
+			actions := []string{
+				fmt.Sprintf("write /run/dhclient/dhclient_%s.conf", ifname),
+				fmt.Sprintf("write /run/systemd/system/dhclient@%s.service.d/10-override.conf", ifname),
+				"systemctl daemon-reload",
+				fmt.Sprintf("systemctl restart dhclient@%s.service", ifname),
+			}
+			actions = append(actions, interfaceStateActions(ifname, m)...)
 			out = append(out, Operation{
 				Backend: "dhclient+systemd",
 				Scope:   fmt.Sprintf("interfaces ethernet %s address dhcp", ifname),
-				Actions: []string{
-					fmt.Sprintf("write /run/dhclient/dhclient_%s.conf", ifname),
-					fmt.Sprintf("write /run/systemd/system/dhclient@%s.service.d/10-override.conf", ifname),
-					"systemctl daemon-reload",
-					fmt.Sprintf("systemctl restart dhclient@%s.service", ifname),
-				},
+				Actions: actions,
 			})
 			continue
 		}
 		addrs := collectAddresses(addrRaw)
-		if len(addrs) == 0 {
+		actions := interfaceStateActions(ifname, m)
+		if len(addrs) == 0 && len(actions) == 0 {
 			continue
+		}
+		if len(addrs) > 0 {
+			actions = append([]string{
+				fmt.Sprintf("write /etc/systemd/network/10-%s.network (Address=%s)", ifname, strings.Join(addrs, ",")),
+				"systemctl restart systemd-networkd",
+			}, actions...)
 		}
 		out = append(out, Operation{
 			Backend: "systemd-networkd",
-			Scope:   fmt.Sprintf("interfaces ethernet %s address", ifname),
-			Actions: []string{
-				fmt.Sprintf("write /etc/systemd/network/10-%s.network (Address=%s)", ifname, strings.Join(addrs, ",")),
-				"systemctl restart systemd-networkd",
-			},
+			Scope:   fmt.Sprintf("interfaces ethernet %s", ifname),
+			Actions: actions,
 		})
 	}
 	return out
@@ -105,6 +114,11 @@ func buildSystemOps(changes map[string]any) []Operation {
 
 func buildServiceOps(changes map[string]any) []Operation {
 	out := make([]Operation, 0)
+	service := mapAt(changes, "service")
+	if len(service) == 0 {
+		return out
+	}
+
 	dns := mapAt(changes, "service", "dns", "forwarding")
 	if len(dns) > 0 {
 		out = append(out, Operation{
@@ -135,6 +149,86 @@ func buildServiceOps(changes map[string]any) []Operation {
 			Actions: []string{
 				"write /etc/ssh/sshd_config.d/90-clawgress.conf",
 				"systemctl restart ssh",
+			},
+		})
+	}
+	for name, raw := range service {
+		if name == "dns" || name == "haproxy" || name == "ssh" {
+			continue
+		}
+		if _, ok := raw.(map[string]any); !ok {
+			continue
+		}
+		unit := strings.ReplaceAll(name, "_", "-")
+		out = append(out, Operation{
+			Backend: "systemd-unit",
+			Scope:   fmt.Sprintf("service %s", strings.ReplaceAll(name, "_", "-")),
+			Actions: []string{
+				fmt.Sprintf("write /etc/clawgress/services/%s.json", name),
+				fmt.Sprintf("systemctl reload-or-restart %s", unit),
+			},
+		})
+	}
+	return out
+}
+
+func buildFirewallNatOps(changes map[string]any) []Operation {
+	out := make([]Operation, 0)
+	if len(mapAt(changes, "firewall")) > 0 {
+		out = append(out, Operation{
+			Backend: "nftables",
+			Scope:   "firewall",
+			Actions: []string{
+				"write /etc/nftables.d/40-clawgress-firewall.nft",
+				"nft -c -f /etc/nftables.d/40-clawgress-firewall.nft",
+				"nft -f /etc/nftables.d/40-clawgress-firewall.nft",
+			},
+		})
+	}
+	if len(mapAt(changes, "nat")) > 0 {
+		out = append(out, Operation{
+			Backend: "nftables",
+			Scope:   "nat",
+			Actions: []string{
+				"write /etc/nftables.d/50-clawgress-nat.nft",
+				"nft -c -f /etc/nftables.d/50-clawgress-nat.nft",
+				"nft -f /etc/nftables.d/50-clawgress-nat.nft",
+			},
+		})
+	}
+	return out
+}
+
+func buildPolicyOps(changes map[string]any) []Operation {
+	if len(mapAt(changes, "policy")) == 0 {
+		return nil
+	}
+	return []Operation{
+		{
+			Backend: "clawgress-policyd",
+			Scope:   "policy",
+			Actions: []string{
+				"write /etc/clawgress/policy/policy.json",
+				"systemctl reload-or-restart clawgress-policyd",
+			},
+		},
+	}
+}
+
+func buildFamilyFallbackOps(changes map[string]any) []Operation {
+	roots := []string{"system", "interfaces", "service", "firewall", "nat", "policy"}
+	out := make([]Operation, 0)
+	for _, root := range roots {
+		m := mapAt(changes, root)
+		if len(m) == 0 {
+			continue
+		}
+		out = append(out, Operation{
+			Backend: "control-daemon",
+			Scope:   root,
+			Actions: []string{
+				fmt.Sprintf("write /etc/clawgress/rendered/%s.json", root),
+				"systemctl reload-or-restart clawgress-configd",
 			},
 		})
 	}
@@ -197,4 +291,51 @@ func collectAddresses(v any) []string {
 	default:
 		return nil
 	}
+}
+
+func interfaceStateActions(ifname string, m map[string]any) []string {
+	out := make([]string, 0)
+	if desc := toString(m["description"]); desc != "" {
+		out = append(out, fmt.Sprintf("write /run/systemd/network/10-%s.link (Description=%s)", ifname, desc))
+	}
+	switch mtu := m["mtu"].(type) {
+	case float64:
+		out = append(out, fmt.Sprintf("ip link set dev %s mtu %d", ifname, int(mtu)))
+	case int:
+		out = append(out, fmt.Sprintf("ip link set dev %s mtu %d", ifname, mtu))
+	case string:
+		if strings.TrimSpace(mtu) != "" {
+			out = append(out, fmt.Sprintf("ip link set dev %s mtu %s", ifname, mtu))
+		}
+	}
+	if role := toString(m["role"]); role != "" {
+		out = append(out, fmt.Sprintf("write /etc/clawgress/interface-role.d/%s.role (%s)", ifname, role))
+	}
+	if v, ok := m["disable"].(bool); ok && v {
+		out = append(out, fmt.Sprintf("ip link set dev %s down", ifname))
+	}
+	return out
+}
+
+func dedupeOps(in []Operation) []Operation {
+	out := make([]Operation, 0, len(in))
+	seen := map[string]bool{}
+	for _, op := range in {
+		if op.Backend == "" || op.Scope == "" {
+			continue
+		}
+		key := op.Backend + "|" + op.Scope
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		out = append(out, op)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Backend != out[j].Backend {
+			return out[i].Backend < out[j].Backend
+		}
+		return out[i].Scope < out[j].Scope
+	})
+	return out
 }

@@ -59,7 +59,7 @@ Path model:
 ## Backend Resolution
 - Every command pattern in `internal/cmdmap/command_schema.json` is imported into the in-memory command model (`internal/cmdmap`).
 - Backend mapping is resolved per pattern in `internal/cmdmap/catalog.go`.
-- Current backend families: `nftables`, `bind9`, `haproxy`, `chrony`, `systemd-networkd`, `dhclient+systemd`, `control-plane`.
+- Current backend families: `nftables`, `bind9`, `haproxy`, `chrony`, `systemd-networkd`, `dhclient+systemd`, `openssh-server`, `systemd-unit`, `clawgress-policyd`, `control-daemon`, `control-plane`.
 
 ## Commit-Time Operation Plan
 - The commit API now returns `ops_plan`, a backend action plan derived from staged commands.
@@ -68,6 +68,11 @@ Path model:
   - write `/run/systemd/system/dhclient@eth0.service.d/10-override.conf`
   - `systemctl daemon-reload`
   - `systemctl restart dhclient@eth0.service`
+- Additional family mappings in commit plan:
+  - `firewall` + `nat` -> render/validate/apply `nftables` snippets
+  - `policy` -> render policy JSON + reload `clawgress-policyd`
+  - `service <name>` (unmodeled families) -> render service JSON + `systemctl reload-or-restart <unit>`
+  - root family fallback -> render `/etc/clawgress/rendered/<family>.json` + reload `clawgress-configd`
 
 ## CLI Behavior
 - Candidate configuration is updated using `set` commands.
