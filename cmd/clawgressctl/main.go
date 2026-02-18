@@ -99,7 +99,7 @@ func runConfigureMode(apiURL, actor, file string) {
 			}
 			msg := fmt.Sprintf("set %s", keyPath)
 			if !cmdmap.MatchSet(keyPath) {
-				msg += " (unmapped path: accepted but not in current VyOS-compatible catalog)"
+				msg += " (unmapped path: accepted but not in current command catalog)"
 			}
 			fmt.Println(msg)
 		case "show":
@@ -192,7 +192,7 @@ func runSet(args []string) {
 
 	warning := ""
 	if !cmdmap.MatchSet(keyPath) {
-		warning = " (unmapped path: accepted but not in current VyOS-compatible catalog)"
+		warning = " (unmapped path: accepted but not in current command catalog)"
 	}
 	fmt.Printf("set %s in %s%s\n", keyPath, *file, warning)
 }
@@ -473,7 +473,7 @@ func parseSetPathAndValue(args []string) (string, any) {
 	pathTokens := args[:len(args)-1]
 	valueRaw := args[len(args)-1]
 
-	// VyOS-style bool toggles may appear as terminal token.
+	// Appliance-style bool toggles may appear as terminal token.
 	if valueRaw == "enable" || valueRaw == "disable" {
 		return normalizePathTokens(pathTokens), parseValue(valueRaw)
 	}

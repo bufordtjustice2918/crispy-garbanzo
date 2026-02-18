@@ -60,9 +60,9 @@ Ubuntu 24.04 LiveCD ISO build workflow and assets:
 - Boot test script: `build/iso/scripts/boot-test.sh`
 - Details: `docs/ISO_WORKFLOW.md`
 
-## VyOS-Style Command Model
-- Command mapping reference: `docs/VYOS_COMMAND_MAPPING.md`
-- Token path catalog (source of truth): `internal/cmdmap/token_paths.go`
+## Appliance Command Model
+- Command mapping reference: `docs/APPLIANCE_COMMAND_MAPPING.md`
+- Token path catalog (source of truth): `internal/cmdmap/command_schema.json`
 
 ## End-to-End Testing
 - Workflow: `.github/workflows/e2e.yml`

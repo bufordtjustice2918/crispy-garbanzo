@@ -6,7 +6,7 @@
 
 ## What It Validates
 1. Control-plane transactional behavior
-- VyOS-style candidate edits via `set`
+- Appliance-style candidate edits via `set`
 - `show configuration commands`
 - `configure` stage operation
 - `commit` activation operation

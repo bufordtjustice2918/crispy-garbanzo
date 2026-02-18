@@ -83,7 +83,7 @@ Success means a team can deploy Clawgress, route agent egress through it, enforc
 - Used for VM subnet egress control.
 
 ### 4.3 LiveCD Appliance Mode (SquashFS Boot)
-- System boots read-only root from SquashFS image (VyOS-style operator experience).
+- System boots read-only root from SquashFS image (network-appliance operator experience).
 - Runtime writes go to ephemeral overlay until explicit install.
 - Includes first-boot CLI access for `set`, `show`, `configure`, `commit`, and `install`.
 - Supports transition from live media to disk install with preserved committed config.

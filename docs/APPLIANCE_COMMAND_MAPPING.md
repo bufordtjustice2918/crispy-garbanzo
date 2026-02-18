@@ -1,8 +1,8 @@
-# VyOS-Style Command Mapping (MVP Scope)
+# Appliance Command Mapping (MVP Scope)
 
-This project intentionally maps the operator-facing command model to VyOS-style `set` and `show` workflows for the egress firewall appliance scope.
+This project maps operator-facing commands to an appliance-style `set` and `show` workflow for the egress firewall scope.
 
-The focus is command semantics and transactional behavior (`configure` -> `commit`), not full VyOS feature parity.
+The focus is command semantics and transactional behavior (`configure` -> `commit`) for Ubuntu-based appliance runtime.
 
 ## Control Plane Runtime Baseline
 - Control plane and data-plane daemons run as `systemd` units.
@@ -43,7 +43,7 @@ The focus is command semantics and transactional behavior (`configure` -> `commi
 
 ## Canonical Token Paths
 Canonical token-path definitions are versioned in code:
-- `internal/cmdmap/token_paths.go`
+- `internal/cmdmap/command_schema.json`
 
 CLI introspection:
 - `clawgressctl show commands`
@@ -61,5 +61,4 @@ Path model:
 
 ## Non-Goals
 - No BGP/OSPF/MPLS routing command families in MVP.
-- No full 1:1 parity with all VyOS command trees.
 - Scope is egress firewall + NAT + service control for appliance mode.
