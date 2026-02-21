@@ -58,4 +58,11 @@ if [ -z "${SOURCE_ISO}" ] || [ ! -f "${SOURCE_ISO}" ]; then
 fi
 
 cp "${SOURCE_ISO}" "${OUT_DIR}/${ISO_NAME}"
+
+# If invoked via sudo, hand artifacts back to the invoking user so later
+# non-root steps (QEMU self-test, checksum, upload) can write/read in OUT_DIR.
+if [ -n "${SUDO_UID:-}" ] && [ -n "${SUDO_GID:-}" ]; then
+  chown -R "${SUDO_UID}:${SUDO_GID}" "${OUT_DIR}" || true
+fi
+
 echo "ISO created: ${OUT_DIR}/${ISO_NAME}"
