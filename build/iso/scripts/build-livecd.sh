@@ -26,8 +26,10 @@ lb config \
   --mode ubuntu \
   --distribution "${DISTRO}" \
   --architectures "${ARCH}" \
+  --linux-flavours generic \
   --binary-images iso \
-  --bootloader grub-efi \
+  --bootloader grub-pc \
+  --debian-installer false \
   --bootappend-live "boot=live components console=ttyS0,115200n8" \
   --archive-areas "main restricted universe multiverse" \
   --mirror-bootstrap "${MIRROR}" \
