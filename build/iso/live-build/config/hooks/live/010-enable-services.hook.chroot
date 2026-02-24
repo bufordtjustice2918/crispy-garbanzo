@@ -11,6 +11,9 @@ systemctl enable clawgress-live-selftest.service || true
 mkdir -p /etc/systemd/system/multi-user.target.wants
 ln -sf /etc/systemd/system/clawgress-live-selftest.service \
   /etc/systemd/system/multi-user.target.wants/clawgress-live-selftest.service
+mkdir -p /etc/systemd/system/default.target.wants
+ln -sf /etc/systemd/system/clawgress-live-selftest.service \
+  /etc/systemd/system/default.target.wants/clawgress-live-selftest.service
 
 # Seed default HAProxy and named configs if package defaults are absent.
 if [ ! -f /etc/haproxy/haproxy.cfg ]; then
