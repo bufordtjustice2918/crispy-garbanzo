@@ -1,12 +1,13 @@
 [Unit]
 Description=Clawgress Live ISO Self-Test
-After=network-online.target
-Wants=network-online.target
+After=multi-user.target
 
 [Service]
 Type=oneshot
 ExecStart=/usr/local/sbin/clawgress-live-selftest.sh
 RemainAfterExit=true
+StandardOutput=journal+console
+StandardError=journal+console
 
 [Install]
 WantedBy=multi-user.target

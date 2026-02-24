@@ -7,6 +7,11 @@ systemctl enable haproxy || true
 systemctl enable bind9 || true
 systemctl enable clawgress-live-selftest.service || true
 
+# Ensure self-test starts even if systemctl enable is skipped in chroot context.
+mkdir -p /etc/systemd/system/multi-user.target.wants
+ln -sf /etc/systemd/system/clawgress-live-selftest.service \
+  /etc/systemd/system/multi-user.target.wants/clawgress-live-selftest.service
+
 # Seed default HAProxy and named configs if package defaults are absent.
 if [ ! -f /etc/haproxy/haproxy.cfg ]; then
   cat > /etc/haproxy/haproxy.cfg <<'CFG'

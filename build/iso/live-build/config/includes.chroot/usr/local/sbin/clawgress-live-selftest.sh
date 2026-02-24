@@ -8,7 +8,10 @@ LOG_FILE="/var/log/clawgress-live-selftest.log"
 log() {
   echo "[$(date -Is)] $*" | tee -a "${LOG_FILE}" >/dev/null
   if [[ -e /dev/ttyS0 ]]; then
-    echo "$*" > /dev/ttyS0
+    echo "$*" > /dev/ttyS0 || true
+  fi
+  if [[ -e /dev/console ]]; then
+    echo "$*" > /dev/console || true
   fi
 }
 
