@@ -19,11 +19,23 @@ if [[ ! -f "${ISO_PATH}" ]]; then
   exit 1
 fi
 
+QEMU_EFI_ARGS=()
+for ovmf in \
+  /usr/share/OVMF/OVMF_CODE.fd \
+  /usr/share/ovmf/OVMF.fd \
+  /usr/share/ovmf/x64/OVMF_CODE.fd; do
+  if [[ -f "${ovmf}" ]]; then
+    QEMU_EFI_ARGS=(-bios "${ovmf}")
+    break
+  fi
+done
+
 set +e
 timeout "${TIMEOUT_SECS}" qemu-system-x86_64 \
   -m 4096 \
   -smp 2 \
   -machine accel=tcg \
+  "${QEMU_EFI_ARGS[@]}" \
   -cdrom "${ISO_PATH}" \
   -boot d \
   -serial mon:stdio \
