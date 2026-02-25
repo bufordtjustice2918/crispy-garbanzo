@@ -28,8 +28,7 @@ lb config \
   --architectures "${ARCH}" \
   --linux-flavours generic \
   --binary-images iso \
-  --bootloader grub-pc \
-  --debian-installer false \
+  --bootloader grub2 \
   --bootappend-live "boot=live components console=ttyS0,115200n8" \
   --archive-areas "main restricted universe multiverse" \
   --mirror-bootstrap "${MIRROR}" \
@@ -59,6 +58,7 @@ if [ -z "${SOURCE_ISO}" ] || [ ! -f "${SOURCE_ISO}" ]; then
   exit 1
 fi
 
+echo "using source ISO artifact: ${SOURCE_ISO}"
 cp "${SOURCE_ISO}" "${OUT_DIR}/${ISO_NAME}"
 
 # If invoked via sudo, hand artifacts back to the invoking user so later
