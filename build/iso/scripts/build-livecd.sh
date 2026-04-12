@@ -7,7 +7,7 @@ OUT_DIR="${ROOT_DIR}/build/iso/out"
 
 DISTRO="${DISTRO:-bookworm}"
 ARCH="${ARCH:-amd64}"
-MIRROR="${MIRROR:-http://deb.debian.org/debian/}"
+MIRROR="${MIRROR:-http://deb.debian.org/debian}"
 ISO_NAME="${ISO_NAME:-clawgress-${DISTRO}-${ARCH}.iso}"
 LB_CACHE_HIT="${LB_CACHE_HIT:-false}"
 
