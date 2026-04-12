@@ -46,8 +46,7 @@ jobs:
           DISTRO: bookworm
           ARCH: amd64
           ISO_NAME: clawgress-bookworm-amd64.iso
-          MIRROR: http://deb.debian.org/debian/
-          SECURITY_MIRROR: http://security.debian.org/debian-security/
+          MIRROR: http://deb.debian.org/debian
           LB_CACHE_HIT: ${{ steps.lb-cache.outputs.cache-hit }}
         run: |
           sudo -E ./build/iso/scripts/build-livecd.sh
