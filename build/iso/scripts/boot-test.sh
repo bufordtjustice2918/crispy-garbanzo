@@ -31,10 +31,17 @@ run_qemu() {
   local accel_args=()
   if [ -r /dev/kvm ]; then
     accel_args=(-enable-kvm -cpu host)
-    echo "KVM acceleration available — using hardware virt"
+    echo "KVM acceleration available -- using hardware virt (timeout: ${mode_timeout}s)"
   else
     accel_args=(-machine accel=tcg)
-    echo "KVM not available — using TCG software emulation (slow)"
+    # TCG is far slower than KVM; give it at least 2400s regardless of the
+    # caller-supplied timeout so a slow runner doesn't produce a false failure.
+    if [ "${mode_timeout}" -lt 2400 ]; then
+      echo "KVM not available -- TCG fallback, extending timeout ${mode_timeout}s -> 2400s"
+      mode_timeout=2400
+    else
+      echo "KVM not available -- using TCG software emulation (timeout: ${mode_timeout}s)"
+    fi
   fi
 
   set +e
