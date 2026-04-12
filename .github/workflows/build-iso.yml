@@ -41,7 +41,7 @@ jobs:
           path: |
             build/iso/live-build/chroot
             build/iso/live-build/.build
-          key: lb-chroot-bookworm-amd64-${{ hashFiles("build/iso/live-build/config/package-lists/**", "build/iso/live-build/config/hooks/**", "build/iso/live-build/config/includes.chroot/**", "build/iso/scripts/build-livecd.sh") }}
+          key: lb-chroot-bookworm-amd64-${{ hashFiles('build/iso/live-build/config/package-lists/**', 'build/iso/live-build/config/hooks/**', 'build/iso/live-build/config/includes.chroot/**', 'build/iso/scripts/build-livecd.sh') }}
           restore-keys: |
             lb-chroot-bookworm-amd64-
 
