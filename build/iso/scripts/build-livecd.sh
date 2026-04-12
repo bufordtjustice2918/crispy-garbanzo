@@ -27,13 +27,17 @@ else
   lb clean --purge || true
 fi
 
+# Debian live-build uses --bootloaders (plural) with different names:
+#   syslinux  = BIOS/legacy boot via isolinux (real hardware + QEMU BIOS)
+#   grub-efi  = UEFI boot (modern real hardware)
+# Both together produces a hybrid ISO bootable on BIOS and UEFI.
 lb config \
   --mode debian \
   --distribution "${DISTRO}" \
   --architectures "${ARCH}" \
   --linux-flavours amd64 \
-  --binary-images iso \
-  --bootloader grub2 \
+  --binary-images iso-hybrid \
+  --bootloaders "syslinux grub-efi" \
   --bootappend-live "boot=live components quiet console=ttyS0,115200n8" \
   --archive-areas "main contrib non-free non-free-firmware" \
   --apt-indices false \
@@ -46,10 +50,10 @@ lb config \
 lb build
 
 SOURCE_ISO=""
-if [ -f "live-image-${ARCH}.iso" ]; then
-  SOURCE_ISO="live-image-${ARCH}.iso"
-elif [ -f "live-image-${ARCH}.hybrid.iso" ]; then
+if [ -f "live-image-${ARCH}.hybrid.iso" ]; then
   SOURCE_ISO="live-image-${ARCH}.hybrid.iso"
+elif [ -f "live-image-${ARCH}.iso" ]; then
+  SOURCE_ISO="live-image-${ARCH}.iso"
 else
   SOURCE_ISO="$(find . -maxdepth 4 -type f \( -name "*.iso" -o -name "*.hybrid.iso" \) | sort | tail -n 1 || true)"
 fi
