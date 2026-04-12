@@ -64,8 +64,19 @@ jobs:
         run: |
           sudo chown -R "$(id -u):$(id -g)" build/iso/live-build/chroot build/iso/live-build/.build 2>/dev/null || true
 
-      # KVM is available on ubuntu-24.04 runners; 400s is sufficient with hardware
-      # virt. The script logs whether KVM or TCG is active.
+      # GitHub ubuntu-24.04 runners have /dev/kvm but the runner user needs
+      # group access. chmod 666 is the standard CI workaround; || true is safe
+      # on runners where KVM is genuinely absent.
+      - name: Enable KVM access for QEMU boot test
+        run: |
+          echo "kvm devices before:"
+          ls -la /dev/kvm 2>/dev/null || echo "/dev/kvm not present"
+          sudo chmod 666 /dev/kvm 2>/dev/null || true
+          echo "kvm devices after:"
+          ls -la /dev/kvm 2>/dev/null || echo "/dev/kvm not present"
+
+      # With KVM the 400s ceiling is generous. boot-test.sh uses an adaptive
+      # timeout internally -- TCG fallback gets 2400s if KVM is absent.
       - name: Boot ISO in QEMU and run live self-test
         run: |
           ./build/iso/scripts/boot-test.sh build/iso/out/clawgress-noble-amd64.iso 400
