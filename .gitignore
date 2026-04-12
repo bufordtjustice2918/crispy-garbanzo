@@ -2,3 +2,7 @@ candidate.json
 state/
 .clawgress/
 tests/e2e/out/
+
+# Build watcher (generated per-run, never commit)
+watcher_state.json
+watcher.db
