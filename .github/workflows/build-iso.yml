@@ -30,10 +30,6 @@ jobs:
             dosfstools \
             syslinux-utils
 
-      # Cache the lb chroot + stage markers. Key covers package lists, hooks,
-      # includes.chroot, AND the build script (lb config args live there).
-      # includes.binary is intentionally excluded -- those files go into the
-      # binary stage which runs every time, not into the cached chroot.
       - name: Restore lb chroot cache
         id: lb-cache
         uses: actions/cache@v4
@@ -41,22 +37,21 @@ jobs:
           path: |
             build/iso/live-build/chroot
             build/iso/live-build/.build
-          key: lb-chroot-noble-amd64-${{ hashFiles('build/iso/live-build/config/package-lists/**', 'build/iso/live-build/config/hooks/**', 'build/iso/live-build/config/includes.chroot/**', 'build/iso/scripts/build-livecd.sh') }}
+          key: lb-chroot-bookworm-amd64-${{ hashFiles('build/iso/live-build/config/package-lists/**', 'build/iso/live-build/config/hooks/**', 'build/iso/live-build/config/includes.chroot/**', 'build/iso/scripts/build-livecd.sh') }}
           restore-keys: |
-            lb-chroot-noble-amd64-
+            lb-chroot-bookworm-amd64-
 
-      - name: Build Ubuntu 24.04 LiveCD ISO
+      - name: Build Debian Bookworm LiveCD ISO
         env:
-          DISTRO: noble
+          DISTRO: bookworm
           ARCH: amd64
-          ISO_NAME: clawgress-noble-amd64.iso
-          MIRROR: http://azure.archive.ubuntu.com/ubuntu/
-          SECURITY_MIRROR: http://security.ubuntu.com/ubuntu/
+          ISO_NAME: clawgress-bookworm-amd64.iso
+          MIRROR: http://deb.debian.org/debian/
+          SECURITY_MIRROR: http://security.debian.org/debian-security/
           LB_CACHE_HIT: ${{ steps.lb-cache.outputs.cache-hit }}
         run: |
           sudo -E ./build/iso/scripts/build-livecd.sh
 
-      # lb build runs as sudo so chroot is root-owned; fix before actions/cache saves.
       - name: Fix chroot ownership for cache save
         if: steps.lb-cache.outputs.cache-hit != 'true'
         run: |
@@ -81,8 +76,6 @@ jobs:
     timeout-minutes: 30
     container:
       image: ubuntu:24.04
-      # --privileged gives the container direct /dev/kvm access and also
-      # allows loop-mounting the ISO to extract kernel/initrd directly.
       options: --privileged
     steps:
       - name: Install dependencies
@@ -102,7 +95,7 @@ jobs:
 
       - name: Boot ISO in QEMU and run live self-test
         run: |
-          ./build/iso/scripts/boot-test.sh build/iso/out/clawgress-noble-amd64.iso 700
+          ./build/iso/scripts/boot-test.sh build/iso/out/clawgress-bookworm-amd64.iso 700
 
       - name: Upload boot test log
         if: always()
