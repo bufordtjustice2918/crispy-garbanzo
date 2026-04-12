@@ -3,7 +3,7 @@ nftables
 iproute2
 conntrack
 
-# DNS service
+# DNS service (bind9 for RPZ + DNS views)
 bind9
 bind9-utils
 
@@ -13,19 +13,17 @@ haproxy
 # Operational utilities
 curl
 jq
-rsyslog
 ca-certificates
 openssh-server
-vim-tiny
 
-# Live boot (casper manages the live session)
-casper
+# Live boot — Debian live-boot replaces Ubuntu casper.
+# live-boot handles live session mount (squashfs/overlayfs).
+# live-config handles first-boot configuration (hostname, users, etc).
+live-boot
+live-boot-initramfs-tools
+live-config
+live-config-systemd
 
 # Installer runtime dependencies (used by clawgress-install).
-# Use -bin variants: grub-pc and grub-efi-amd64 hard-conflict with each other;
-# -bin packages provide modules only and can coexist. grub-common (pulled as
-# a dep) supplies grub-install and update-grub.
 debootstrap
 gdisk
-grub-pc-bin
-grub-efi-amd64-bin
