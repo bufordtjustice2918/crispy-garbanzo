@@ -7,7 +7,7 @@ if [[ $# -lt 1 ]]; then
 fi
 
 ISO_PATH="$1"
-TIMEOUT_SECS="${2:-900}"
+TIMEOUT_SECS="${2:-700}"
 LOG_PATH="${LOG_PATH:-build/iso/out/boot-test.log}"
 PASS_MARKER="CLAWGRESS_LIVE_SELFTEST_PASS"
 FAIL_MARKER="CLAWGRESS_LIVE_SELFTEST_FAIL"
@@ -19,65 +19,43 @@ if [[ ! -f "${ISO_PATH}" ]]; then
   exit 1
 fi
 
-run_qemu() {
-  local mode="$1"
-  local mode_timeout="$2"
-  local mode_log="$3"
-  shift 3
-  local extra_args=("$@")
-
-  # Prefer KVM hardware acceleration when available (GitHub Actions ubuntu-24.04
-  # runners expose /dev/kvm). Fall back to TCG software emulation if not.
-  local accel_args=()
-  if [ -r /dev/kvm ]; then
-    accel_args=(-enable-kvm -cpu host)
-    echo "KVM acceleration available -- using hardware virt (timeout: ${mode_timeout}s)"
-  else
-    accel_args=(-machine accel=tcg)
-    # TCG is far slower than KVM; give it at least 2400s regardless of the
-    # caller-supplied timeout so a slow runner doesn't produce a false failure.
-    if [ "${mode_timeout}" -lt 2400 ]; then
-      echo "KVM not available -- TCG fallback, extending timeout ${mode_timeout}s -> 2400s"
-      mode_timeout=2400
-    else
-      echo "KVM not available -- using TCG software emulation (timeout: ${mode_timeout}s)"
-    fi
-  fi
-
-  set +e
-  timeout "${mode_timeout}" qemu-system-x86_64 \
-    -m 2048 \
-    -smp 2 \
-    "${accel_args[@]}" \
-    "${extra_args[@]}" \
-    -cdrom "${ISO_PATH}" \
-    -boot d \
-    -nographic \
-    -no-reboot >"${mode_log}" 2>&1
-  local qemu_exit=$?
-  set -e
-
-  if grep -q "${PASS_MARKER}" "${mode_log}"; then
-    cp "${mode_log}" "${LOG_PATH}"
-    echo "ISO boot self-test: PASS (${mode})"
-    exit 0
-  fi
-
-  if grep -q "${FAIL_MARKER}" "${mode_log}"; then
-    cp "${mode_log}" "${LOG_PATH}"
-    echo "ISO boot self-test: FAIL marker detected (${mode})" >&2
-    tail -n 200 "${LOG_PATH}" >&2 || true
-    exit 1
-  fi
-
-  echo "ISO boot self-test: ${mode} attempt failed (exit ${qemu_exit})" >&2
-}
+# Prefer KVM hardware acceleration when available.
+accel_args=()
+if [ -r /dev/kvm ]; then
+  accel_args=(-enable-kvm -cpu host)
+  echo "KVM available -- using hardware virt (timeout: ${TIMEOUT_SECS}s)"
+else
+  accel_args=(-machine accel=tcg)
+  echo "KVM not available -- using TCG software emulation (timeout: ${TIMEOUT_SECS}s)"
+fi
 
 BIOS_LOG="${LOG_PATH%.log}-bios.log"
-run_qemu "bios" "${TIMEOUT_SECS}" "${BIOS_LOG}"
+
+set +e
+timeout "${TIMEOUT_SECS}" qemu-system-x86_64 \
+  -m 2048 \
+  -smp 2 \
+  "${accel_args[@]}" \
+  -cdrom "${ISO_PATH}" \
+  -boot d \
+  -nographic \
+  -no-reboot >"${BIOS_LOG}" 2>&1
+QEMU_EXIT=$?
+set -e
+
 cp "${BIOS_LOG}" "${LOG_PATH}" || true
 
-echo "ISO boot self-test: timed out or failed without PASS marker" >&2
+if grep -q "${PASS_MARKER}" "${LOG_PATH}"; then
+  echo "ISO boot self-test: PASS"
+  exit 0
+fi
 
+if grep -q "${FAIL_MARKER}" "${LOG_PATH}"; then
+  echo "ISO boot self-test: FAIL marker detected" >&2
+  tail -n 200 "${LOG_PATH}" >&2 || true
+  exit 1
+fi
+
+echo "ISO boot self-test: timed out or failed without PASS marker (qemu exit ${QEMU_EXIT})" >&2
 tail -n 200 "${LOG_PATH}" >&2 || true
 exit 1
