@@ -1,36 +1,30 @@
 #!/bin/sh
 # Configure GRUB to output to serial console (ttyS0) so that boot progress
 # is visible in QEMU -nographic / headless CI boot tests.
-#
-# This hook runs during the binary stage, after live-build generates grub.cfg,
-# and prepends the serial terminal directives before any other GRUB config.
+# Also enforces a short auto-boot timeout so the live session starts without
+# waiting for user keyboard input.
 set -eu
 
 # live-build places the binary-stage ISO tree in binary/ relative to LB_DIR.
+# Search broadly -- the exact path varies across live-build versions/modes.
 GRUB_CFG=""
-for candidate in \
-    "binary/boot/grub/grub.cfg" \
-    "binary/boot/grub/grub.d/00_grub.cfg" \
-    "binary/EFI/boot/grub.cfg"; do
-    if [ -f "${candidate}" ]; then
-        GRUB_CFG="${candidate}"
-        break
-    fi
-done
+GRUB_CFG="$(find binary/ -name "grub.cfg" 2>/dev/null | sort | head -1 || true)"
 
-if [ -z "${GRUB_CFG}" ]; then
-    echo "Warning: grub.cfg not found — serial console not configured" >&2
-    echo "Searched paths within binary/:" >&2
-    find binary/boot/ -name "*.cfg" 2>/dev/null | sort >&2 || true
+if [ -z "${GRUB_CFG}" ] || [ ! -f "${GRUB_CFG}" ]; then
+    echo "Warning: grub.cfg not found -- serial console not configured" >&2
+    echo "All .cfg files found under binary/:" >&2
+    find binary/ -name "*.cfg" 2>/dev/null | sort >&2 || true
     exit 0
 fi
 
-echo "Prepending GRUB serial console config to ${GRUB_CFG}"
+echo "Configuring GRUB serial console and auto-boot in ${GRUB_CFG}"
 
+# Prepend serial terminal directives so GRUB outputs to ttyS0 (visible in
+# QEMU -nographic) in addition to the VGA console.
 tmpfile=$(mktemp)
 cat > "${tmpfile}" << 'GRUBSERIAL'
-# Serial console — required for headless QEMU boot tests (-nographic).
-# Without this, GRUB outputs to VGA which is invisible in -nographic mode.
+# Serial console -- required for headless QEMU boot tests (-nographic).
+# Without this, GRUB outputs to VGA only, which is invisible in -nographic.
 serial --speed=115200 --unit=0 --word=8 --parity=no --stop=1
 terminal_input  serial console
 terminal_output serial console
@@ -39,4 +33,21 @@ GRUBSERIAL
 
 cat "${GRUB_CFG}" >> "${tmpfile}"
 mv "${tmpfile}" "${GRUB_CFG}"
+
+# Force a short auto-boot timeout (10s) so the live session starts without
+# waiting for user input. Replace an existing timeout line if present,
+# otherwise insert one after the serial config block.
+if grep -q "^set timeout=" "${GRUB_CFG}"; then
+    sed -i 's/^set timeout=.*/set timeout=10/' "${GRUB_CFG}"
+else
+    sed -i '/^terminal_output/a set timeout=10' "${GRUB_CFG}"
+fi
+
+# Ensure the first menu entry is selected by default.
+if ! grep -q "^set default=" "${GRUB_CFG}"; then
+    sed -i '/^terminal_output/a set default=0' "${GRUB_CFG}"
+fi
+
 echo "GRUB serial console configured: ${GRUB_CFG}"
+echo "--- resulting grub.cfg head ---"
+head -20 "${GRUB_CFG}"
