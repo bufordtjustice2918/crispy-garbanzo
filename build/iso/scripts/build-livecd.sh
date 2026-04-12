@@ -64,8 +64,4 @@ fi
 echo "using source ISO artifact: ${SOURCE_ISO}"
 cp "${SOURCE_ISO}" "${OUT_DIR}/${ISO_NAME}"
 
-if [ -n "${SUDO_UID:-}" ] && [ -n "${SUDO_GID:-}" ]; then
-  chown -R "${SUDO_UID}:${SUDO_GID}" "${OUT_DIR}" || true
-fi
-
 echo "ISO created: ${OUT_DIR}/${ISO_NAME}"
