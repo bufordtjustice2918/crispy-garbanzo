@@ -5,13 +5,11 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 LB_DIR="${ROOT_DIR}/build/iso/live-build"
 OUT_DIR="${ROOT_DIR}/build/iso/out"
 
-DISTRO="${DISTRO:-noble}"
+DISTRO="${DISTRO:-bookworm}"
 ARCH="${ARCH:-amd64}"
-# Default to Azure mirror -- geographically close to GitHub Actions Azure East US runners.
-MIRROR="${MIRROR:-http://azure.archive.ubuntu.com/ubuntu/}"
-SECURITY_MIRROR="${SECURITY_MIRROR:-http://security.ubuntu.com/ubuntu/}"
+MIRROR="${MIRROR:-http://deb.debian.org/debian/}"
+SECURITY_MIRROR="${SECURITY_MIRROR:-http://security.debian.org/debian-security/}"
 ISO_NAME="${ISO_NAME:-clawgress-${DISTRO}-${ARCH}.iso}"
-# Set by CI when actions/cache restored a valid chroot; skip --purge to reuse it.
 LB_CACHE_HIT="${LB_CACHE_HIT:-false}"
 
 if ! command -v lb >/dev/null 2>&1; then
@@ -22,9 +20,6 @@ fi
 mkdir -p "${OUT_DIR}"
 cd "${LB_DIR}"
 
-# On cache hit the chroot + stage markers are already present; a plain lb clean
-# clears only binary artifacts so we skip the expensive debootstrap+install stage.
-# On cache miss (or first run) we purge everything for a reproducible full build.
 if [ "${LB_CACHE_HIT}" = "true" ]; then
   echo "lb chroot cache hit -- skipping debootstrap (lb clean without --purge)"
   lb clean || true
@@ -34,21 +29,21 @@ else
 fi
 
 lb config \
-  --mode ubuntu \
+  --mode debian \
   --distribution "${DISTRO}" \
   --architectures "${ARCH}" \
-  --linux-flavours generic \
+  --linux-flavours amd64 \
   --binary-images iso \
   --bootloader grub2 \
-  --bootappend-live "boot=live components console=ttyS0,115200n8" \
-  --archive-areas "main universe" \
+  --bootappend-live "boot=live components quiet console=ttyS0,115200n8" \
+  --archive-areas "main contrib non-free non-free-firmware" \
+  --apt-indices false \
   --apt-recommends false \
   --mirror-bootstrap "${MIRROR}" \
   --mirror-chroot "${MIRROR}" \
   --mirror-binary "${MIRROR}" \
   --mirror-binary-security "${SECURITY_MIRROR}"
 
-# Build Ubuntu LiveCD ISO with SquashFS root.
 lb build
 
 SOURCE_ISO=""
@@ -57,15 +52,12 @@ if [ -f "live-image-${ARCH}.iso" ]; then
 elif [ -f "live-image-${ARCH}.hybrid.iso" ]; then
   SOURCE_ISO="live-image-${ARCH}.hybrid.iso"
 else
-  # Fallback: detect ISO artifact location/name changes across live-build versions.
-  SOURCE_ISO="$(find . -maxdepth 4 -type f \( -name '*.iso' -o -name '*.hybrid.iso' \) | sort | tail -n 1 || true)"
+  SOURCE_ISO="$(find . -maxdepth 4 -type f \( -name "*.iso" -o -name "*.hybrid.iso" \) | sort | tail -n 1 || true)"
 fi
 
 if [ -z "${SOURCE_ISO}" ] || [ ! -f "${SOURCE_ISO}" ]; then
-  echo "expected ISO not found. looked for live-image-${ARCH}.iso/hybrid and scanned workspace." >&2
-  echo "debug listing (top-level):" >&2
+  echo "expected ISO not found." >&2
   ls -la >&2 || true
-  echo "debug listing (*.iso within depth 4):" >&2
   find . -maxdepth 4 -type f | sort >&2 || true
   exit 1
 fi
@@ -73,8 +65,6 @@ fi
 echo "using source ISO artifact: ${SOURCE_ISO}"
 cp "${SOURCE_ISO}" "${OUT_DIR}/${ISO_NAME}"
 
-# If invoked via sudo, hand artifacts back to the invoking user so later
-# non-root steps (QEMU self-test, checksum, upload) can write/read in OUT_DIR.
 if [ -n "${SUDO_UID:-}" ] && [ -n "${SUDO_GID:-}" ]; then
   chown -R "${SUDO_UID}:${SUDO_GID}" "${OUT_DIR}" || true
 fi
