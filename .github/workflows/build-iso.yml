@@ -31,9 +31,9 @@ jobs:
             qemu-system-x86 \
             syslinux-utils
 
-      # Cache the lb chroot + stage markers so debootstrap and package installs
-      # are skipped on runs where only hooks/includes/binary config changed.
-      # Key covers package list + hooks + includes -- any change busts the cache.
+      # Cache the lb chroot + stage markers. Key covers package lists, hooks,
+      # includes, AND the build script itself (lb config args live there), so
+      # changes to --apt-recommends, --debootstrap-options, etc. bust the cache.
       - name: Restore lb chroot cache
         id: lb-cache
         uses: actions/cache@v4
@@ -41,7 +41,7 @@ jobs:
           path: |
             build/iso/live-build/chroot
             build/iso/live-build/.build
-          key: lb-chroot-noble-amd64-${{ hashFiles('build/iso/live-build/config/package-lists/**', 'build/iso/live-build/config/hooks/**', 'build/iso/live-build/config/includes.chroot/**') }}
+          key: lb-chroot-noble-amd64-${{ hashFiles('build/iso/live-build/config/package-lists/**', 'build/iso/live-build/config/hooks/**', 'build/iso/live-build/config/includes.chroot/**', 'build/iso/scripts/build-livecd.sh') }}
           restore-keys: |
             lb-chroot-noble-amd64-
 
@@ -65,8 +65,7 @@ jobs:
           sudo chown -R "$(id -u):$(id -g)" build/iso/live-build/chroot build/iso/live-build/.build 2>/dev/null || true
 
       # GitHub ubuntu-24.04 runners have /dev/kvm but the runner user needs
-      # group access. chmod 666 is the standard CI workaround; || true is safe
-      # on runners where KVM is genuinely absent.
+      # group access. chmod 666 is the standard CI workaround.
       - name: Enable KVM access for QEMU boot test
         run: |
           echo "kvm devices before:"
