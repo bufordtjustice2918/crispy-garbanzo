@@ -7,9 +7,12 @@ OUT_DIR="${ROOT_DIR}/build/iso/out"
 
 DISTRO="${DISTRO:-noble}"
 ARCH="${ARCH:-amd64}"
-MIRROR="${MIRROR:-http://archive.ubuntu.com/ubuntu/}"
+# Default to Azure mirror -- geographically close to GitHub Actions Azure East US runners.
+MIRROR="${MIRROR:-http://azure.archive.ubuntu.com/ubuntu/}"
 SECURITY_MIRROR="${SECURITY_MIRROR:-http://security.ubuntu.com/ubuntu/}"
 ISO_NAME="${ISO_NAME:-clawgress-${DISTRO}-${ARCH}.iso}"
+# Set by CI when actions/cache restored a valid chroot; skip --purge to reuse it.
+LB_CACHE_HIT="${LB_CACHE_HIT:-false}"
 
 if ! command -v lb >/dev/null 2>&1; then
   echo "live-build (lb) is required. Install package: live-build" >&2
@@ -19,8 +22,16 @@ fi
 mkdir -p "${OUT_DIR}"
 cd "${LB_DIR}"
 
-# Start from clean state each run for reproducibility.
-lb clean --purge || true
+# On cache hit the chroot + stage markers are already present; a plain lb clean
+# clears only binary artifacts so we skip the expensive debootstrap+install stage.
+# On cache miss (or first run) we purge everything for a reproducible full build.
+if [ "${LB_CACHE_HIT}" = "true" ]; then
+  echo "lb chroot cache hit -- skipping debootstrap (lb clean without --purge)"
+  lb clean || true
+else
+  echo "lb chroot cache miss -- full clean and debootstrap"
+  lb clean --purge || true
+fi
 
 lb config \
   --mode ubuntu \
