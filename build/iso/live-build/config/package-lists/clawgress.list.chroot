@@ -18,11 +18,14 @@ ca-certificates
 openssh-server
 vim-tiny
 
-# Live boot (casper manages the live session; ubiquity replaced by clawgress-install)
+# Live boot (casper manages the live session)
 casper
 
-# Installer runtime dependencies (used by clawgress-install)
+# Installer runtime dependencies (used by clawgress-install).
+# Use -bin variants: grub-pc and grub-efi-amd64 hard-conflict with each other;
+# -bin packages provide modules only and can coexist. grub-common (pulled as
+# a dep) supplies grub-install and update-grub.
 debootstrap
 gdisk
-grub-pc
-grub-efi-amd64
+grub-pc-bin
+grub-efi-amd64-bin
