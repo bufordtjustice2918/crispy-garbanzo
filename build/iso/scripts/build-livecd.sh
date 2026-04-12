@@ -43,7 +43,6 @@ lb config \
   --bootappend-live "boot=live components console=ttyS0,115200n8" \
   --archive-areas "main universe" \
   --apt-recommends false \
-  --debootstrap-options "--variant=minbase" \
   --mirror-bootstrap "${MIRROR}" \
   --mirror-chroot "${MIRROR}" \
   --mirror-binary "${MIRROR}" \
