@@ -8,7 +8,6 @@ OUT_DIR="${ROOT_DIR}/build/iso/out"
 DISTRO="${DISTRO:-bookworm}"
 ARCH="${ARCH:-amd64}"
 MIRROR="${MIRROR:-http://deb.debian.org/debian/}"
-SECURITY_MIRROR="${SECURITY_MIRROR:-http://security.debian.org/debian-security/}"
 ISO_NAME="${ISO_NAME:-clawgress-${DISTRO}-${ARCH}.iso}"
 LB_CACHE_HIT="${LB_CACHE_HIT:-false}"
 
@@ -39,10 +38,10 @@ lb config \
   --archive-areas "main contrib non-free non-free-firmware" \
   --apt-indices false \
   --apt-recommends false \
+  --security false \
   --mirror-bootstrap "${MIRROR}" \
   --mirror-chroot "${MIRROR}" \
-  --mirror-binary "${MIRROR}" \
-  --mirror-binary-security "${SECURITY_MIRROR}"
+  --mirror-binary "${MIRROR}"
 
 lb build
 
