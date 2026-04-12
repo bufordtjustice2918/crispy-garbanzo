@@ -81,15 +81,15 @@ jobs:
     timeout-minutes: 30
     container:
       image: ubuntu:24.04
-      # --privileged gives the container direct /dev/kvm access without
-      # needing chmod hacks. This is the clean, reliable way to run KVM
-      # in GitHub Actions, as used by VyOS and other appliance projects.
+      # --privileged gives the container direct /dev/kvm access and also
+      # allows loop-mounting the ISO to extract kernel/initrd directly.
       options: --privileged
     steps:
       - name: Install dependencies
         run: |
           apt-get update -qq
-          DEBIAN_FRONTEND=noninteractive apt-get install -y git qemu-system-x86
+          DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            git qemu-system-x86 mount
 
       - name: Checkout
         uses: actions/checkout@v4
