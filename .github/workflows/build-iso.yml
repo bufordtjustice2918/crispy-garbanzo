@@ -33,7 +33,7 @@ jobs:
 
       # Cache the lb chroot + stage markers. Key covers package lists, hooks,
       # includes, AND the build script itself (lb config args live there), so
-      # changes to --apt-recommends, --debootstrap-options, etc. bust the cache.
+      # changes to --apt-recommends, archive-areas, etc. bust the cache.
       - name: Restore lb chroot cache
         id: lb-cache
         uses: actions/cache@v4
@@ -74,11 +74,11 @@ jobs:
           echo "kvm devices after:"
           ls -la /dev/kvm 2>/dev/null || echo "/dev/kvm not present"
 
-      # With KVM the 400s ceiling is generous. boot-test.sh uses an adaptive
-      # timeout internally -- TCG fallback gets 2400s if KVM is absent.
+      # 700s: GRUB auto-boot (10s) + casper/squashfs + service startup with KVM.
+      # boot-test.sh raises to 2400s automatically if KVM is absent (TCG fallback).
       - name: Boot ISO in QEMU and run live self-test
         run: |
-          ./build/iso/scripts/boot-test.sh build/iso/out/clawgress-noble-amd64.iso 400
+          ./build/iso/scripts/boot-test.sh build/iso/out/clawgress-noble-amd64.iso 700
 
       # Checksum generation and upload are one logical operation.
       - name: Generate checksums and upload ISO artifacts
