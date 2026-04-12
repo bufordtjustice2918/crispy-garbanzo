@@ -28,12 +28,12 @@ jobs:
             grub-efi-amd64-bin \
             mtools \
             dosfstools \
-            qemu-system-x86 \
             syslinux-utils
 
       # Cache the lb chroot + stage markers. Key covers package lists, hooks,
-      # includes, AND the build script itself (lb config args live there), so
-      # changes to --apt-recommends, archive-areas, etc. bust the cache.
+      # includes.chroot, AND the build script (lb config args live there).
+      # includes.binary is intentionally excluded -- those files go into the
+      # binary stage which runs every time, not into the cached chroot.
       - name: Restore lb chroot cache
         id: lb-cache
         uses: actions/cache@v4
@@ -50,47 +50,64 @@ jobs:
           DISTRO: noble
           ARCH: amd64
           ISO_NAME: clawgress-noble-amd64.iso
-          # Azure mirror is geographically close to GitHub's Azure East US runners.
           MIRROR: http://azure.archive.ubuntu.com/ubuntu/
           SECURITY_MIRROR: http://security.ubuntu.com/ubuntu/
           LB_CACHE_HIT: ${{ steps.lb-cache.outputs.cache-hit }}
         run: |
           sudo -E ./build/iso/scripts/build-livecd.sh
 
-      # lb build runs as sudo so chroot is root-owned; fix before actions/cache
-      # tries to save it as the runner user.
+      # lb build runs as sudo so chroot is root-owned; fix before actions/cache saves.
       - name: Fix chroot ownership for cache save
         if: steps.lb-cache.outputs.cache-hit != 'true'
         run: |
           sudo chown -R "$(id -u):$(id -g)" build/iso/live-build/chroot build/iso/live-build/.build 2>/dev/null || true
 
-      # GitHub ubuntu-24.04 runners have /dev/kvm but the runner user needs
-      # group access. chmod 666 is the standard CI workaround.
-      - name: Enable KVM access for QEMU boot test
-        run: |
-          echo "kvm devices before:"
-          ls -la /dev/kvm 2>/dev/null || echo "/dev/kvm not present"
-          sudo chmod 666 /dev/kvm 2>/dev/null || true
-          echo "kvm devices after:"
-          ls -la /dev/kvm 2>/dev/null || echo "/dev/kvm not present"
-
-      # 700s: GRUB auto-boot (10s) + casper/squashfs + service startup with KVM.
-      # boot-test.sh raises to 2400s automatically if KVM is absent (TCG fallback).
-      - name: Boot ISO in QEMU and run live self-test
-        run: |
-          ./build/iso/scripts/boot-test.sh build/iso/out/clawgress-noble-amd64.iso 700
-
-      # Checksum generation and upload are one logical operation.
-      - name: Generate checksums and upload ISO artifacts
+      - name: Generate checksums
         run: cd build/iso/out && sha256sum *.iso > SHA256SUMS
 
-      - name: Upload ISO artifacts
+      - name: Upload ISO artifact
         uses: actions/upload-artifact@v4
         with:
           name: clawgress-livecd-iso
           path: |
             build/iso/out/*.iso
             build/iso/out/SHA256SUMS
-            build/iso/out/boot-test.log
           if-no-files-found: error
           retention-days: 14
+
+  boot-test:
+    needs: build-livecd
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    container:
+      image: ubuntu:24.04
+      # --privileged gives the container direct /dev/kvm access without
+      # needing chmod hacks. This is the clean, reliable way to run KVM
+      # in GitHub Actions, as used by VyOS and other appliance projects.
+      options: --privileged
+    steps:
+      - name: Install dependencies
+        run: |
+          apt-get update -qq
+          DEBIAN_FRONTEND=noninteractive apt-get install -y git qemu-system-x86
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download ISO artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: clawgress-livecd-iso
+          path: build/iso/out
+
+      - name: Boot ISO in QEMU and run live self-test
+        run: |
+          ./build/iso/scripts/boot-test.sh build/iso/out/clawgress-noble-amd64.iso 700
+
+      - name: Upload boot test log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: boot-test-log
+          path: build/iso/out/boot-test.log
+          if-no-files-found: ignore
