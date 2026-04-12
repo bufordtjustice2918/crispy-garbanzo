@@ -1,6 +1,6 @@
 [Unit]
 Description=Clawgress Live ISO Self-Test
-After=multi-user.target
+After=multi-user.target network.target
 
 [Service]
 Type=oneshot
@@ -11,4 +11,3 @@ StandardError=journal+console
 
 [Install]
 WantedBy=multi-user.target
-WantedBy=default.target
