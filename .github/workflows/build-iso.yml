@@ -31,22 +31,48 @@ jobs:
             qemu-system-x86 \
             syslinux-utils
 
+      # Cache the lb chroot + stage markers so debootstrap and package installs
+      # are skipped on runs where only hooks/includes/binary config changed.
+      # Key covers package list + hooks + includes -- any change busts the cache.
+      - name: Restore lb chroot cache
+        id: lb-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            build/iso/live-build/chroot
+            build/iso/live-build/.build
+          key: lb-chroot-noble-amd64-${{ hashFiles('build/iso/live-build/config/package-lists/**', 'build/iso/live-build/config/hooks/**', 'build/iso/live-build/config/includes.chroot/**') }}
+          restore-keys: |
+            lb-chroot-noble-amd64-
+
       - name: Build Ubuntu 24.04 LiveCD ISO
         env:
           DISTRO: noble
           ARCH: amd64
           ISO_NAME: clawgress-noble-amd64.iso
+          # Azure mirror is geographically close to GitHub's Azure East US runners.
+          MIRROR: http://azure.archive.ubuntu.com/ubuntu/
+          SECURITY_MIRROR: http://security.ubuntu.com/ubuntu/
+          LB_CACHE_HIT: ${{ steps.lb-cache.outputs.cache-hit }}
         run: |
           sudo -E ./build/iso/scripts/build-livecd.sh
 
+      # lb build runs as sudo so chroot is root-owned; fix before actions/cache
+      # tries to save it as the runner user.
+      - name: Fix chroot ownership for cache save
+        if: steps.lb-cache.outputs.cache-hit != 'true'
+        run: |
+          sudo chown -R "$(id -u):$(id -g)" build/iso/live-build/chroot build/iso/live-build/.build 2>/dev/null || true
+
+      # KVM is available on ubuntu-24.04 runners; 400s is sufficient with hardware
+      # virt. The script logs whether KVM or TCG is active.
       - name: Boot ISO in QEMU and run live self-test
         run: |
-          ./build/iso/scripts/boot-test.sh build/iso/out/clawgress-noble-amd64.iso 1200
+          ./build/iso/scripts/boot-test.sh build/iso/out/clawgress-noble-amd64.iso 400
 
-      - name: Generate checksums
-        run: |
-          cd build/iso/out
-          sha256sum *.iso > SHA256SUMS
+      # Checksum generation and upload are one logical operation.
+      - name: Generate checksums and upload ISO artifacts
+        run: cd build/iso/out && sha256sum *.iso > SHA256SUMS
 
       - name: Upload ISO artifacts
         uses: actions/upload-artifact@v4
