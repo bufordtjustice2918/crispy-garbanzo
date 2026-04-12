@@ -26,11 +26,22 @@ run_qemu() {
   shift 3
   local extra_args=("$@")
 
+  # Prefer KVM hardware acceleration when available (GitHub Actions ubuntu-24.04
+  # runners expose /dev/kvm). Fall back to TCG software emulation if not.
+  local accel_args=()
+  if [ -r /dev/kvm ]; then
+    accel_args=(-enable-kvm -cpu host)
+    echo "KVM acceleration available — using hardware virt"
+  else
+    accel_args=(-machine accel=tcg)
+    echo "KVM not available — using TCG software emulation (slow)"
+  fi
+
   set +e
   timeout "${mode_timeout}" qemu-system-x86_64 \
-    -m 4096 \
+    -m 2048 \
     -smp 2 \
-    -machine accel=tcg \
+    "${accel_args[@]}" \
     "${extra_args[@]}" \
     -cdrom "${ISO_PATH}" \
     -boot d \

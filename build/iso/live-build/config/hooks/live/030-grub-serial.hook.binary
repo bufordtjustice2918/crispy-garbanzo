@@ -1,0 +1,42 @@
+#!/bin/sh
+# Configure GRUB to output to serial console (ttyS0) so that boot progress
+# is visible in QEMU -nographic / headless CI boot tests.
+#
+# This hook runs during the binary stage, after live-build generates grub.cfg,
+# and prepends the serial terminal directives before any other GRUB config.
+set -eu
+
+# live-build places the binary-stage ISO tree in binary/ relative to LB_DIR.
+GRUB_CFG=""
+for candidate in \
+    "binary/boot/grub/grub.cfg" \
+    "binary/boot/grub/grub.d/00_grub.cfg" \
+    "binary/EFI/boot/grub.cfg"; do
+    if [ -f "${candidate}" ]; then
+        GRUB_CFG="${candidate}"
+        break
+    fi
+done
+
+if [ -z "${GRUB_CFG}" ]; then
+    echo "Warning: grub.cfg not found — serial console not configured" >&2
+    echo "Searched paths within binary/:" >&2
+    find binary/boot/ -name "*.cfg" 2>/dev/null | sort >&2 || true
+    exit 0
+fi
+
+echo "Prepending GRUB serial console config to ${GRUB_CFG}"
+
+tmpfile=$(mktemp)
+cat > "${tmpfile}" << 'GRUBSERIAL'
+# Serial console — required for headless QEMU boot tests (-nographic).
+# Without this, GRUB outputs to VGA which is invisible in -nographic mode.
+serial --speed=115200 --unit=0 --word=8 --parity=no --stop=1
+terminal_input  serial console
+terminal_output serial console
+
+GRUBSERIAL
+
+cat "${GRUB_CFG}" >> "${tmpfile}"
+mv "${tmpfile}" "${GRUB_CFG}"
+echo "GRUB serial console configured: ${GRUB_CFG}"
