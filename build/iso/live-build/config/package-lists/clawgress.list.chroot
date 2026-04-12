@@ -18,10 +18,11 @@ ca-certificates
 openssh-server
 vim-tiny
 
-# Live boot and installer path
+# Live boot (casper manages the live session; ubiquity replaced by clawgress-install)
 casper
-ubiquity
-ubiquity-casper
 
-# Compression and runtime helpers
-squashfs-tools
+# Installer runtime dependencies (used by clawgress-install)
+debootstrap
+gdisk
+grub-pc
+grub-efi-amd64
