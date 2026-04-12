@@ -12,14 +12,17 @@ on:
 jobs:
   build-livecd:
     runs-on: ubuntu-24.04
+    container:
+      image: debian:bookworm
+      options: --privileged
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Install build dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
+          apt-get update -qq
+          DEBIAN_FRONTEND=noninteractive apt-get install -y \
             live-build \
             debootstrap \
             xorriso \
@@ -28,7 +31,8 @@ jobs:
             grub-efi-amd64-bin \
             mtools \
             dosfstools \
-            syslinux-utils
+            syslinux-utils \
+            ca-certificates
 
       - name: Restore lb chroot cache
         id: lb-cache
@@ -49,12 +53,12 @@ jobs:
           MIRROR: http://deb.debian.org/debian
           LB_CACHE_HIT: ${{ steps.lb-cache.outputs.cache-hit }}
         run: |
-          sudo -E ./build/iso/scripts/build-livecd.sh
+          ./build/iso/scripts/build-livecd.sh
 
       - name: Fix chroot ownership for cache save
         if: steps.lb-cache.outputs.cache-hit != 'true'
         run: |
-          sudo chown -R "$(id -u):$(id -g)" build/iso/live-build/chroot build/iso/live-build/.build 2>/dev/null || true
+          chown -R "$(id -u):$(id -g)" build/iso/live-build/chroot build/iso/live-build/.build 2>/dev/null || true
 
       - name: Generate checksums
         run: cd build/iso/out && sha256sum *.iso > SHA256SUMS
