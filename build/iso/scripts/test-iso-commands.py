@@ -90,6 +90,47 @@ DEFAULT_SMOKE_COMMANDS = [
 
     # Audit events have required fields
     "sudo jq -e '.request_id and .agent_id and .destination and .decision and .policy_id' /var/log/clawgress/audit.jsonl | grep -q true",
+
+    # --- Admin API CRUD e2e ---
+    # List agents — should return at least the seed agent
+    "curl -sf http://localhost:8080/v1/agents | jq -e 'length > 0'",
+
+    # Get seed agent by ID
+    "curl -sf http://localhost:8080/v1/agents/test-agent-001 | jq -e '.agent_id == \"test-agent-001\"'",
+
+    # Create a new agent via POST
+    "curl -sf -X POST http://localhost:8080/v1/agents -H 'Content-Type: application/json' -d '{\"agent_id\":\"e2e-crud-agent\",\"api_key\":\"e2e-crud-key\",\"team_id\":\"e2e-team\",\"project_id\":\"e2e-proj\",\"environment\":\"test\",\"status\":\"active\"}' | jq -e '.agent_id == \"e2e-crud-agent\"'",
+
+    # Verify new agent appears in list
+    "curl -sf http://localhost:8080/v1/agents/e2e-crud-agent | jq -e '.api_key == \"e2e-crud-key\"'",
+
+    # Create a policy that allows the new agent to reach localhost
+    "curl -sf -X POST http://localhost:8080/v1/policies -H 'Content-Type: application/json' -d '{\"policy_id\":\"e2e-crud-policy\",\"agent_id\":\"e2e-crud-agent\",\"domains\":[\"localhost\",\"127.0.0.1\"],\"action\":\"allow\"}' | jq -e '.policy_id == \"e2e-crud-policy\"'",
+
+    # List policies — should include the new policy
+    "curl -sf http://localhost:8080/v1/policies | jq -e '[.[] | select(.policy_id == \"e2e-crud-policy\")] | length == 1'",
+
+    # Get policy by ID
+    "curl -sf http://localhost:8080/v1/policies/e2e-crud-policy | jq -e '.action == \"allow\"'",
+
+    # Hot-reload verify: new agent key works through the proxy (SIGHUP was sent)
+    # Wait a moment for SIGHUP to propagate
+    "sleep 2 && test \"$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 --proxy http://e2e-crud-agent:e2e-crud-key@localhost:3128 http://localhost:8080/healthz)\" = 200",
+
+    # Delete the agent
+    "curl -sf -X DELETE http://localhost:8080/v1/agents/e2e-crud-agent | jq -e '.deleted == \"e2e-crud-agent\"'",
+
+    # Verify agent is gone (404)
+    "test \"$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/v1/agents/e2e-crud-agent)\" = 404",
+
+    # Delete the policy
+    "curl -sf -X DELETE http://localhost:8080/v1/policies/e2e-crud-policy | jq -e '.deleted == \"e2e-crud-policy\"'",
+
+    # Verify policy is gone (404)
+    "test \"$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/v1/policies/e2e-crud-policy)\" = 404",
+
+    # Hot-reload verify: deleted agent key is rejected (407) after SIGHUP
+    "sleep 2 && test \"$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 --proxy http://e2e-crud-agent:e2e-crud-key@localhost:3128 http://localhost:8080/healthz)\" = 407",
 ]
 
 DEFAULT_SERVICE_CHECK_COMMANDS = DEFAULT_SMOKE_COMMANDS + [

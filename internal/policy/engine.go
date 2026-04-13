@@ -72,6 +72,67 @@ func (e *Engine) Rules() []Rule {
 	return out
 }
 
+// LookupByID returns the rule with the given PolicyID, or nil if not found.
+func (e *Engine) LookupByID(id string) *Rule {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	for i := range e.rules {
+		if e.rules[i].PolicyID == id {
+			cp := e.rules[i]
+			return &cp
+		}
+	}
+	return nil
+}
+
+// Add appends a rule. Call Save() to persist.
+func (e *Engine) Add(r Rule) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	// Replace if policy_id already exists.
+	for i := range e.rules {
+		if e.rules[i].PolicyID == r.PolicyID {
+			e.rules[i] = r
+			return
+		}
+	}
+	e.rules = append(e.rules, r)
+}
+
+// Remove deletes a rule by PolicyID. Returns true if it existed. Call Save() to persist.
+func (e *Engine) Remove(id string) bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	for i := range e.rules {
+		if e.rules[i].PolicyID == id {
+			e.rules = append(e.rules[:i], e.rules[i+1:]...)
+			return true
+		}
+	}
+	return false
+}
+
+// Save writes the current rules to disk atomically.
+func (e *Engine) Save() error {
+	e.mu.RLock()
+	out := make([]Rule, len(e.rules))
+	copy(out, e.rules)
+	e.mu.RUnlock()
+
+	data, err := json.MarshalIndent(out, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal policy: %w", err)
+	}
+	tmp := e.path + ".tmp"
+	if err := os.WriteFile(tmp, data, 0o644); err != nil {
+		return fmt.Errorf("write policy tmp: %w", err)
+	}
+	if err := os.Rename(tmp, e.path); err != nil {
+		return fmt.Errorf("rename policy: %w", err)
+	}
+	return nil
+}
+
 // Evaluate returns a Decision for the given (agentID, destHost) pair.
 // destHost may include a port (e.g. "example.com:443"); the port is stripped before matching.
 // If no rule matches the default action is deny.

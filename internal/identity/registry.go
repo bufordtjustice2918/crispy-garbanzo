@@ -92,3 +92,60 @@ func (r *Registry) All() []Agent {
 	}
 	return out
 }
+
+// LookupByID returns the agent with the given ID, or nil if not found.
+func (r *Registry) LookupByID(id string) *Agent {
+	r.mu.RLock()
+	a := r.byID[id]
+	r.mu.RUnlock()
+	if a == nil {
+		return nil
+	}
+	cp := *a
+	return &cp
+}
+
+// Add inserts or replaces an agent. Call Save() to persist.
+func (r *Registry) Add(a Agent) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	cp := a
+	r.byKey[cp.APIKey] = &cp
+	r.byID[cp.AgentID] = &cp
+}
+
+// Remove deletes an agent by ID. Returns true if it existed. Call Save() to persist.
+func (r *Registry) Remove(id string) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	a, ok := r.byID[id]
+	if !ok {
+		return false
+	}
+	delete(r.byID, id)
+	delete(r.byKey, a.APIKey)
+	return true
+}
+
+// Save writes the current agent list to disk atomically.
+func (r *Registry) Save() error {
+	r.mu.RLock()
+	agents := make([]Agent, 0, len(r.byID))
+	for _, a := range r.byID {
+		agents = append(agents, *a)
+	}
+	r.mu.RUnlock()
+
+	data, err := json.MarshalIndent(agents, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal agents: %w", err)
+	}
+	tmp := r.path + ".tmp"
+	if err := os.WriteFile(tmp, data, 0o644); err != nil {
+		return fmt.Errorf("write agents tmp: %w", err)
+	}
+	if err := os.Rename(tmp, r.path); err != nil {
+		return fmt.Errorf("rename agents: %w", err)
+	}
+	return nil
+}

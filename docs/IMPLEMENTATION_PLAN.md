@@ -49,12 +49,19 @@ outbound request is identity-checked, policy-evaluated, and audit-logged.
 ---
 
 ## Step 2 — Identity + Policy CRUD via Admin API
-- ⬜ `POST /v1/agents`       — create/update agent records
-- ⬜ `GET  /v1/agents`       — list agents (used by `clawgressctl show agents`)
-- ⬜ `POST /v1/policies`     — create/update policy rules
-- ⬜ `GET  /v1/policies`     — list active policy (used by `clawgressctl show policy`)
-- ⬜ Gateway hot-reload via admin API trigger (no SIGHUP required from operator)
-- ⬜ E2E: create agent via API, verify proxy accepts it, delete, verify 407
+- ✅ `POST /v1/agents`       — create/update agent records
+- ✅ `GET  /v1/agents`       — list agents
+- ✅ `GET  /v1/agents/{id}`  — get agent by ID
+- ✅ `DELETE /v1/agents/{id}` — remove agent
+- ✅ `POST /v1/policies`     — create/update policy rules
+- ✅ `GET  /v1/policies`     — list active policy
+- ✅ `GET  /v1/policies/{id}` — get policy by ID
+- ✅ `DELETE /v1/policies/{id}` — remove policy
+- ✅ Gateway hot-reload: admin API sends SIGHUP to gateway after every write
+- ✅ Atomic disk persistence (write-tmp + rename) for agents.json and policy.json
+- ✅ E2E: create agent via API, verify proxy accepts new key (hot-reload)
+- ✅ E2E: delete agent, verify proxy rejects deleted key (407)
+- ✅ E2E: create/get/delete policy cycle with verification
 
 ---
 
