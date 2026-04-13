@@ -377,10 +377,10 @@ def run_suite(args: argparse.Namespace) -> int:
                     continue
                 serial_fd = os.open(serial_pty_path, os.O_RDWR | os.O_NOCTTY)
                 child = pexpect.fdpexpect.fdspawn(
-                    serial_fd, encoding="utf-8", timeout=args.boot_timeout
+                    serial_fd, encoding="utf-8", codec_errors="ignore", timeout=args.boot_timeout
                 )
             else:
-                child = pexpect.spawn(cmd[0], cmd[1:], encoding="utf-8", timeout=args.boot_timeout)
+                child = pexpect.spawn(cmd[0], cmd[1:], encoding="utf-8", codec_errors="ignore", timeout=args.boot_timeout)
 
             child.logfile = transcript
 
