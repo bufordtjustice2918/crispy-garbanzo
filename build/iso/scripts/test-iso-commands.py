@@ -117,6 +117,27 @@ def fail(msg: str, code: int = 1) -> None:
     raise SystemExit(code)
 
 
+_OVMF_CODE_CANDIDATES = [
+    "/usr/share/OVMF/OVMF_CODE_4M.fd",
+    "/usr/share/OVMF/OVMF_CODE.fd",
+    "/usr/share/edk2/x64/OVMF_CODE.fd",
+    "/usr/share/qemu/OVMF_CODE.fd",
+]
+_OVMF_VARS_CANDIDATES = [
+    "/usr/share/OVMF/OVMF_VARS_4M.fd",
+    "/usr/share/OVMF/OVMF_VARS.fd",
+    "/usr/share/edk2/x64/OVMF_VARS.fd",
+    "/usr/share/qemu/OVMF_VARS.fd",
+]
+
+
+def _find_ovmf() -> tuple[str, str]:
+    """Return (OVMF_CODE, OVMF_VARS) paths, or ('', '') if not found."""
+    code = next((p for p in _OVMF_CODE_CANDIDATES if os.path.isfile(p)), "")
+    vars_ = next((p for p in _OVMF_VARS_CANDIDATES if os.path.isfile(p)), "")
+    return code, vars_
+
+
 def qemu_cmd(
     iso: str,
     disk: str,
@@ -124,14 +145,33 @@ def qemu_cmd(
     cpus: int,
     use_kvm: bool,
     serial_pty: bool = False,
+    ovmf_vars_tmp: str = "",
 ) -> list[str]:
-    """Build QEMU CDROM-boot command.  Serial output goes to stdio (or PTY)."""
+    """Build QEMU UEFI/CDROM-boot command.  Serial output goes to stdio (or PTY).
+
+    Uses OVMF (UEFI) when available so GRUB EFI runs instead of ISOLINUX.
+    GRUB EFI reads /boot/grub/grub.cfg which routes serial to ttyS0 — required
+    for headless CI boot.  BIOS/ISOLINUX has no serial console and hangs headless.
+    """
     cmd = [
         "qemu-system-x86_64",
         "-name", "clawgress-cmd-suite",
         "-m", str(ram_mb),
         "-smp", str(cpus),
-        # CDROM boot — boots GRUB from the ISO, exactly like real hardware.
+    ]
+
+    # UEFI firmware — prefer OVMF so GRUB EFI runs (serial console works).
+    ovmf_code, ovmf_vars = _find_ovmf()
+    if ovmf_code and ovmf_vars:
+        cmd.extend([
+            "-machine", "type=q35",
+            "-drive", f"if=pflash,format=raw,readonly=on,file={ovmf_code}",
+            "-drive", f"if=pflash,format=raw,file={ovmf_vars_tmp or ovmf_vars}",
+        ])
+    # else: fall back to default BIOS (ISOLINUX) — serial may not work
+
+    cmd.extend([
+        # CDROM boot — boots GRUB EFI from the ISO, exactly like real hardware.
         "-cdrom", iso,
         "-boot", "order=d,menu=off",
         # Optional writable disk so the installer can be tested later.
@@ -141,7 +181,7 @@ def qemu_cmd(
         "-device", "virtio-net-pci,netdev=net0",
         "-monitor", "none",
         "-display", "none",
-    ]
+    ])
     if serial_pty:
         cmd.extend(["-serial", "pty"])
     else:
@@ -253,11 +293,24 @@ def run_suite(args: argparse.Namespace) -> int:
     serial_pty_path = None
     keep_vm_alive = False
 
+    # Create a writable copy of OVMF VARS so UEFI can store boot state.
+    ovmf_vars_tmp = ""
+    _, ovmf_vars_src = _find_ovmf()
+    if ovmf_vars_src:
+        import tempfile as _tf
+        _tmp = _tf.NamedTemporaryFile(prefix="OVMF_VARS.", suffix=".fd", delete=False)
+        _tmp.close()
+        ovmf_vars_tmp = _tmp.name
+        import shutil as _sh
+        _sh.copy2(ovmf_vars_src, ovmf_vars_tmp)
+        log(f"UEFI boot: OVMF VARS tmp={ovmf_vars_tmp}")
+
     try:
         for attempt_kvm in attempt_order:
             cmd = qemu_cmd(
                 args.iso, str(disk_file), args.ram_mb, args.cpus,
                 attempt_kvm, serial_pty=args.serial_pty,
+                ovmf_vars_tmp=ovmf_vars_tmp,
             )
             log("Starting VM via CDROM boot with " + ("KVM" if attempt_kvm else "software emulation"))
 
@@ -462,6 +515,13 @@ def run_suite(args: argparse.Namespace) -> int:
         for fh in (transcript, qemu_boot_log):
             if fh is not None and not fh.closed:
                 fh.close()
+
+        # Clean up OVMF VARS temp file.
+        if ovmf_vars_tmp and os.path.exists(ovmf_vars_tmp):
+            try:
+                os.unlink(ovmf_vars_tmp)
+            except Exception:
+                pass
 
         summary["ended_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
         summary_path.write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")

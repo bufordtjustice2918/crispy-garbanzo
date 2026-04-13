@@ -87,7 +87,8 @@ jobs:
           apt-get update -qq
           DEBIAN_FRONTEND=noninteractive apt-get install -y \
             git qemu-system-x86 qemu-utils mount \
-            python3 python3-pexpect
+            python3 python3-pexpect \
+            ovmf
 
       - name: Checkout
         uses: actions/checkout@v4
