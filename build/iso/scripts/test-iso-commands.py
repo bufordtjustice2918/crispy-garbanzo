@@ -98,7 +98,7 @@ DEFAULT_FAIL_PATTERNS = [
 QEMU_LOCK_FILE = "/tmp/clawgress-qemu.lock"
 QEMU_PROCESS_PATTERN = r"qemu-system-.*clawgress-(cmd-suite|smoke-test)"
 
-PROMPT_RE = r"(?m)^[^\r\n]*\$\s*$|(?m)^[^\r\n]*#\s*$"
+PROMPT_RE = r"(?m)(?:^[^\r\n]*\$\s*$|^[^\r\n]*#\s*$)"
 LOGIN_RE = r"(?i)login:\s*$"
 PASSWORD_RE = r"(?i)password:\s*$"
 KVM_FAIL_RE = r"failed to initialize kvm|Could not access KVM kernel module"
