@@ -101,18 +101,19 @@ jobs:
   boot-test:
     needs: build-livecd
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    container:
-      image: debian:bookworm
-      options: --privileged
+    timeout-minutes: 15
     steps:
       - name: Install dependencies
         run: |
-          apt-get update -qq
-          DEBIAN_FRONTEND=noninteractive apt-get install -y \
-            git qemu-system-x86 qemu-utils mount \
+          sudo apt-get update -qq
+          DEBIAN_FRONTEND=noninteractive sudo apt-get install -y \
+            qemu-system-x86 qemu-utils \
             python3 python3-pexpect \
             ovmf
+
+      - name: Verify KVM access
+        run: |
+          ls -la /dev/kvm && echo "KVM available" || echo "KVM not available — will use TCG"
 
       - name: Checkout
         uses: actions/checkout@v4
@@ -125,14 +126,14 @@ jobs:
 
       - name: Boot ISO via GRUB/CDROM and check live selftest
         run: |
-          ./build/iso/scripts/boot-test.sh build/iso/out/clawgress-bookworm-amd64.iso 700
+          ./build/iso/scripts/boot-test.sh build/iso/out/clawgress-bookworm-amd64.iso 120
 
       - name: E2E smoke suite (pexpect login + service checks)
         run: |
           python3 build/iso/scripts/test-iso-commands.py \
             --iso build/iso/out/clawgress-bookworm-amd64.iso \
             --suite smoke \
-            --boot-timeout 400 \
+            --boot-timeout 120 \
             --log-dir build/iso/out/e2e-logs
 
       - name: Upload boot test logs
