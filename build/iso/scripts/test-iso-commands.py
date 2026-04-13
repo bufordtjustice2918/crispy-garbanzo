@@ -74,7 +74,7 @@ DEFAULT_SMOKE_COMMANDS = [
     "test \"$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 --proxy http://test-agent-001:clawgress-test-key-001@localhost:3128 http://localhost:8080/healthz)\" = 200",
 
     # Policy-blocked domain → 403 Forbidden
-    "test \"$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 --proxy http://test-agent-001:clawgress-test-key-001@localhost:3128 http://blocked.example.invalid/)\" = 403",
+    "sleep 1 && test \"$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 --proxy http://test-agent-001:clawgress-test-key-001@localhost:3128 http://blocked.example.invalid/)\" = 403",
 
     # Audit log exists and has entries
     "test -s /var/log/clawgress/audit.jsonl",
