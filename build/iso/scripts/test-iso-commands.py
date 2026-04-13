@@ -121,13 +121,13 @@ DEFAULT_SMOKE_COMMANDS = [
     "curl -sf -X DELETE http://localhost:8080/v1/agents/e2e-crud-agent | jq -e '.deleted == \"e2e-crud-agent\"'",
 
     # Verify agent is gone (404)
-    "test \"$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/v1/agents/e2e-crud-agent)\" = 404",
+    "sleep 1 && test \"$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/v1/agents/e2e-crud-agent)\" = 404",
 
     # Delete the policy
     "curl -sf -X DELETE http://localhost:8080/v1/policies/e2e-crud-policy | jq -e '.deleted == \"e2e-crud-policy\"'",
 
     # Verify policy is gone (404)
-    "test \"$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/v1/policies/e2e-crud-policy)\" = 404",
+    "sleep 1 && test \"$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/v1/policies/e2e-crud-policy)\" = 404",
 
     # Hot-reload verify: deleted agent key is rejected (407) after SIGHUP
     "sleep 2 && test \"$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 --proxy http://e2e-crud-agent:e2e-crud-key@localhost:3128 http://localhost:8080/healthz)\" = 407",
