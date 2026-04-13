@@ -4,6 +4,18 @@ set -eu
 # Ensure core daemons are enabled for live environment boot.
 systemctl enable nftables || true
 systemctl enable haproxy || true
+systemctl enable clawgress-gateway || true
+systemctl enable clawgress-admin-api || true
+
+# Force-symlink clawgress services (same pattern as bind9 below).
+ln -sf /etc/systemd/system/clawgress-gateway.service \
+  /etc/systemd/system/multi-user.target.wants/clawgress-gateway.service || true
+ln -sf /etc/systemd/system/clawgress-admin-api.service \
+  /etc/systemd/system/multi-user.target.wants/clawgress-admin-api.service || true
+
+# Create runtime directories.
+mkdir -p /var/lib/clawgress/state /var/log/clawgress
+
 # bind9.service is a linked unit — systemctl enable refuses it; symlink directly.
 mkdir -p /etc/systemd/system/multi-user.target.wants
 ln -sf /lib/systemd/system/bind9.service \

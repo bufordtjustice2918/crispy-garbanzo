@@ -1,0 +1,10 @@
+[
+  {
+    "agent_id": "test-agent-001",
+    "team_id": "test-team",
+    "project_id": "test-project",
+    "environment": "live-test",
+    "api_key": "clawgress-test-key-001",
+    "status": "active"
+  }
+]

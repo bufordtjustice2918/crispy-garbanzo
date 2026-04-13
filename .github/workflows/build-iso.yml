@@ -32,7 +32,31 @@ jobs:
             mtools \
             dosfstools \
             syslinux-utils \
-            ca-certificates
+            ca-certificates \
+            curl
+
+      - name: Install Go 1.22
+        run: |
+          curl -fsSL https://go.dev/dl/go1.22.10.linux-amd64.tar.gz -o /tmp/go.tar.gz
+          tar -C /usr/local -xzf /tmp/go.tar.gz
+          echo 'export PATH=$PATH:/usr/local/go/bin' >> /etc/profile
+          /usr/local/go/bin/go version
+
+      - name: Build Go binaries for ISO
+        run: |
+          export PATH=$PATH:/usr/local/go/bin
+          SBIN=build/iso/live-build/config/includes.chroot/usr/local/sbin
+          GOOS=linux GOARCH=amd64 go build \
+            -trimpath -ldflags="-s -w" \
+            -o "${SBIN}/clawgress-gateway" \
+            ./cmd/clawgress-gateway
+          GOOS=linux GOARCH=amd64 go build \
+            -trimpath -ldflags="-s -w" \
+            -o "${SBIN}/clawgress-admin-api" \
+            ./cmd/clawgress-admin-api
+          chmod +x "${SBIN}/clawgress-gateway" "${SBIN}/clawgress-admin-api"
+          echo "Gateway binary: $(file ${SBIN}/clawgress-gateway)"
+          echo "Admin API binary: $(file ${SBIN}/clawgress-admin-api)"
 
       - name: Restore lb chroot cache
         id: lb-cache

@@ -1,0 +1,17 @@
+[Unit]
+Description=Clawgress Admin API
+Documentation=https://github.com/bufordtjustice2918/crispy-garbanzo
+After=network.target
+
+[Service]
+ExecStart=/usr/local/sbin/clawgress-admin-api
+Environment=CLAWGRESS_ADMIN_LISTEN=:8080
+Environment=CLAWGRESS_STATE_DIR=/var/lib/clawgress/state
+Environment=CLAWGRESS_NFT_APPLY=false
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

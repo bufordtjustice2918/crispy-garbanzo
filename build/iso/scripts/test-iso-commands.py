@@ -58,6 +58,38 @@ DEFAULT_SMOKE_COMMANDS = [
     # Installer present and executable
     "test -x /usr/local/sbin/clawgress-install.sh",
     "/usr/local/sbin/clawgress-install.sh --help 2>&1 | grep -qi usage",
+
+    # --- Gateway e2e ---
+    # Services running
+    "sudo systemctl is-active clawgress-gateway",
+    "sudo systemctl is-active clawgress-admin-api",
+
+    # Admin API health check
+    "curl -sf http://localhost:8080/healthz | grep -q ok",
+
+    # Anonymous proxy request must be rejected with 407
+    "test \"$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 --proxy http://localhost:3128 http://localhost:8080/healthz)\" = 407",
+
+    # Valid API key → request forwarded (non-407; 200 from local healthz)
+    "test \"$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 --proxy http://test-agent-001:clawgress-test-key-001@localhost:3128 http://localhost:8080/healthz)\" = 200",
+
+    # Policy-blocked domain → 403 Forbidden
+    "test \"$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 --proxy http://test-agent-001:clawgress-test-key-001@localhost:3128 http://blocked.example.invalid/)\" = 403",
+
+    # Audit log exists and has entries
+    "test -s /var/log/clawgress/audit.jsonl",
+
+    # Audit log is valid JSONL (every line parses as JSON)
+    "jq -c . /var/log/clawgress/audit.jsonl | wc -l | grep -qv '^0$'",
+
+    # Audit log contains at least one deny decision
+    "jq -r '.decision' /var/log/clawgress/audit.jsonl | grep -q deny",
+
+    # Audit log contains at least one allow decision
+    "jq -r '.decision' /var/log/clawgress/audit.jsonl | grep -q allow",
+
+    # Audit events have required fields
+    "jq -e '.request_id and .agent_id and .destination and .decision and .policy_id' /var/log/clawgress/audit.jsonl | grep -q true",
 ]
 
 DEFAULT_SERVICE_CHECK_COMMANDS = DEFAULT_SMOKE_COMMANDS + [

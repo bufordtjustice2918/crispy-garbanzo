@@ -1,0 +1,18 @@
+[Unit]
+Description=Clawgress Egress Governance Gateway
+Documentation=https://github.com/bufordtjustice2918/crispy-garbanzo
+After=network.target
+
+[Service]
+ExecStart=/usr/local/sbin/clawgress-gateway
+Environment=CLAWGRESS_PROXY_LISTEN=:3128
+Environment=CLAWGRESS_AGENTS_FILE=/etc/clawgress/agents.json
+Environment=CLAWGRESS_POLICY_FILE=/etc/clawgress/policy.json
+Environment=CLAWGRESS_AUDIT_FILE=/var/log/clawgress/audit.jsonl
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

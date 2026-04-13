@@ -1,0 +1,8 @@
+[
+  {
+    "policy_id": "allow-local-test",
+    "agent_id": "test-agent-001",
+    "domains": ["localhost", "127.0.0.1"],
+    "action": "allow"
+  }
+]
