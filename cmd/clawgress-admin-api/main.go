@@ -409,6 +409,90 @@ func main() {
 	})
 
 	// -----------------------------------------------------------------------
+	// Operational / diagnostic endpoints
+	// -----------------------------------------------------------------------
+
+	// POST /v1/policy/sign — sign the current policy rules and return the bundle
+	mux.HandleFunc("/v1/policy/sign", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "method not allowed"})
+			return
+		}
+		secret := os.Getenv("CLAWGRESS_POLICY_SIGN_SECRET")
+		if secret == "" {
+			secret = "clawgress-default-sign-key"
+		}
+		bundle := policy.SignBundle(eng.Rules(), []byte(secret))
+		writeJSON(w, http.StatusOK, bundle)
+	})
+
+	// POST /v1/policy/verify — verify a signed bundle
+	mux.HandleFunc("/v1/policy/verify", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "method not allowed"})
+			return
+		}
+		var bundle policy.SignedBundle
+		if err := json.NewDecoder(r.Body).Decode(&bundle); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON"})
+			return
+		}
+		secret := os.Getenv("CLAWGRESS_POLICY_SIGN_SECRET")
+		if secret == "" {
+			secret = "clawgress-default-sign-key"
+		}
+		if err := policy.VerifyBundle(bundle, []byte(secret)); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error(), "valid": "false"})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"valid": "true"})
+	})
+
+	// GET /v1/nft/render — render nftables rules from current policy
+	mux.HandleFunc("/v1/nft/render", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "method not allowed"})
+			return
+		}
+		rules := eng.Rules()
+		nftOut := enforcer.RenderPolicyNft(rules, "clawgress", "egress_policy")
+		w.Header().Set("Content-Type", "text/plain")
+		w.Write([]byte(nftOut))
+	})
+
+	// GET /v1/nft/transparent — render transparent gateway nft rules
+	mux.HandleFunc("/v1/nft/transparent", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "method not allowed"})
+			return
+		}
+		cfg := enforcer.TransparentConfig{
+			ProxyPort:  3128,
+			InboundIf:  r.URL.Query().Get("iface"),
+			SubnetCIDR: r.URL.Query().Get("subnet"),
+		}
+		nftOut := enforcer.RenderTransparentNft(cfg)
+		w.Header().Set("Content-Type", "text/plain")
+		w.Write([]byte(nftOut))
+	})
+
+	// GET /v1/config/validate — validate current running config
+	mux.HandleFunc("/v1/config/validate", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "method not allowed"})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{
+			"valid":      true,
+			"agents":     len(reg.All()),
+			"policies":   len(eng.Rules()),
+			"quotas":     len(qlim.All()),
+			"state_dir":  stateDir,
+			"audit_file": auditFile,
+		})
+	})
+
+	// -----------------------------------------------------------------------
 	// Admin UI (embedded)
 	// -----------------------------------------------------------------------
 

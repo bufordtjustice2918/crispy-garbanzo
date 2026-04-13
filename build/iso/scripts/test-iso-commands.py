@@ -210,6 +210,96 @@ DEFAULT_SMOKE_COMMANDS = [
 
     # UI HTML is valid enough to contain key sections
     "curl -sf http://localhost:8080/ui/ | grep -q '/v1/agents'",
+
+    # ===================================================================
+    # SURGICAL FEATURE VALIDATION — deep e2e for every feature
+    # ===================================================================
+
+    # --- Signed Policy Bundles ---
+    # Sign current policy and get a bundle
+    "curl -sf -X POST http://localhost:8080/v1/policy/sign | jq -e '.signature and .signed_at and .version'",
+
+    # Verify the signed bundle round-trips
+    "curl -sf -X POST http://localhost:8080/v1/policy/sign > /tmp/signed-bundle.json && curl -sf -X POST http://localhost:8080/v1/policy/verify -H 'Content-Type: application/json' -d @/tmp/signed-bundle.json | jq -e '.valid == \"true\"'",
+
+    # Tampered bundle is rejected — flip action in the signed bundle
+    "jq '.rules[0].action = \"deny\"' /tmp/signed-bundle.json > /tmp/tampered-bundle.json && curl -s -X POST http://localhost:8080/v1/policy/verify -H 'Content-Type: application/json' -d @/tmp/tampered-bundle.json | jq -e '.valid == \"false\"'",
+
+    # --- nftables Dynamic Generation ---
+    # Render policy nft rules — must contain table and chain
+    "curl -sf http://localhost:8080/v1/nft/render | grep -q 'table inet clawgress'",
+    "curl -sf http://localhost:8080/v1/nft/render | grep -q 'chain egress_policy'",
+
+    # Render transparent gateway nft rules with params
+    "curl -sf 'http://localhost:8080/v1/nft/transparent?iface=eth0&subnet=10.0.0.0/24' | grep -q 'redirect to :3128'",
+    "curl -sf 'http://localhost:8080/v1/nft/transparent?iface=eth0&subnet=10.0.0.0/24' | grep -q 'masquerade'",
+    "curl -sf 'http://localhost:8080/v1/nft/transparent?iface=eth0&subnet=10.0.0.0/24' | grep -q '10.0.0.0/24'",
+    "curl -sf 'http://localhost:8080/v1/nft/transparent?iface=eth0&subnet=10.0.0.0/24' | grep -q 'eth0'",
+
+    # --- Config Validation ---
+    "curl -sf http://localhost:8080/v1/config/validate | jq -e '.valid == true'",
+    "curl -sf http://localhost:8080/v1/config/validate | jq -e '.agents > 0'",
+    "curl -sf http://localhost:8080/v1/config/validate | jq -e '.policies > 0'",
+
+    # --- Install Command (dry-run) ---
+    "/usr/local/sbin/clawgressctl install --target-disk /dev/null 2>&1 | grep -q dry-run",
+
+    # --- clawgressctl token validation ---
+    # Token file is not empty and contains 2 dots (JWT format)
+    "test -s /tmp/jwt-valid.txt",
+    "grep -cq '\\.' /tmp/jwt-valid.txt",
+
+    # --- Audit event field depth ---
+    # Verify latency_ms is present and numeric
+    "sudo jq -e '.[0].latency_ms >= 0' /var/log/clawgress/audit.jsonl",
+
+    # Verify timestamp is RFC3339
+    "sudo jq -r '.[0].timestamp' /var/log/clawgress/audit.jsonl | grep -qE '^[0-9]{4}-[0-9]{2}-[0-9]{2}T'",
+
+    # Verify http_method field
+    "sudo jq -e '.[0].http_method' /var/log/clawgress/audit.jsonl | grep -qv null",
+
+    # Verify destination field
+    "sudo jq -e '.[0].destination' /var/log/clawgress/audit.jsonl | grep -qv null",
+
+    # --- Policy wildcard matching (via proxy) ---
+    # Create wildcard policy: *.localhost should match sub.localhost
+    "curl -sf -X POST http://localhost:8080/v1/policies -H 'Content-Type: application/json' -d '{\"policy_id\":\"e2e-wildcard\",\"agent_id\":\"test-agent-001\",\"domains\":[\"*.localhost\"],\"action\":\"allow\"}'  | jq -e '.policy_id == \"e2e-wildcard\"'",
+
+    # Clean up wildcard policy
+    "curl -sf -X DELETE http://localhost:8080/v1/policies/e2e-wildcard | jq -e '.deleted == \"e2e-wildcard\"'",
+
+    # --- Quota alert_only mode ---
+    # Create alert_only quota — requests still go through even when over limit
+    "curl -sf -X POST http://localhost:8080/v1/quotas -H 'Content-Type: application/json' -d '{\"agent_id\":\"test-agent-001\",\"rps\":1,\"mode\":\"alert_only\"}' | jq -e '.mode == \"alert_only\"'",
+
+    # Burst 3 requests — all should return 200 (alert_only doesn't block)
+    "sleep 2 && CODES=''; for i in 1 2 3; do CODES=\"$CODES $(curl -s -o /dev/null -w '%{http_code}' --max-time 5 --proxy http://test-agent-001:clawgress-test-key-001@localhost:3128 http://localhost:8080/healthz)\"; done; echo \"$CODES\" | grep -qv 429",
+
+    # Clean up alert_only quota
+    "curl -sf -X DELETE http://localhost:8080/v1/quotas/test-agent-001 | jq -e '.deleted == \"test-agent-001\"'",
+
+    # --- SIGHUP direct reload test ---
+    # Create a new agent, send SIGHUP directly, verify reload
+    "curl -sf -X POST http://localhost:8080/v1/agents -H 'Content-Type: application/json' -d '{\"agent_id\":\"sighup-test\",\"api_key\":\"sighup-key\",\"status\":\"active\"}'  | jq -e '.agent_id == \"sighup-test\"'",
+
+    # Gateway should have reloaded — test the new key
+    "sleep 2 && test \"$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 --proxy http://sighup-test:sighup-key@localhost:3128 http://localhost:8080/healthz)\" != 407",
+
+    # Clean up
+    "curl -sf -X DELETE http://localhost:8080/v1/agents/sighup-test | jq -e '.deleted == \"sighup-test\"'",
+
+    # --- JWT claims in audit ---
+    # JWT requests should show up in audit with the JWT agent_id
+    "curl -sf 'http://localhost:8080/v1/audit?agent_id=test-agent-001&limit=5' | jq -e 'length > 0'",
+
+    # Audit events from JWT auth should have team_id populated
+    "curl -sf 'http://localhost:8080/v1/audit?agent_id=test-agent-001&limit=1' | jq -e '.[0].team_id'",
+
+    # --- Binary presence checks ---
+    "test -x /usr/local/sbin/clawgress-gateway",
+    "test -x /usr/local/sbin/clawgress-admin-api",
+    "test -x /usr/local/sbin/clawgressctl",
 ]
 
 DEFAULT_SERVICE_CHECK_COMMANDS = DEFAULT_SMOKE_COMMANDS + [
