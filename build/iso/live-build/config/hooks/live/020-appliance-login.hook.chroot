@@ -7,7 +7,12 @@ if ! id -u clawgress >/dev/null 2>&1; then
 fi
 
 echo 'clawgress:clawgress' | chpasswd
-chage -d -1 clawgress || true
+# No forced expiry on live ISO — expiry is set by the disk installer.
+
+# Passwordless sudo so the e2e test suite can run privileged commands
+# without an interactive password prompt breaking pexpect.
+echo 'clawgress ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/clawgress
+chmod 0440 /etc/sudoers.d/clawgress
 
 # ANSI login banner shown after authentication.
 cat > /etc/update-motd.d/00-clawgress-banner <<'BANNER'

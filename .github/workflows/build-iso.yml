@@ -86,7 +86,8 @@ jobs:
         run: |
           apt-get update -qq
           DEBIAN_FRONTEND=noninteractive apt-get install -y \
-            git qemu-system-x86 mount
+            git qemu-system-x86 qemu-utils mount \
+            python3 python3-pexpect
 
       - name: Checkout
         uses: actions/checkout@v4
@@ -97,14 +98,24 @@ jobs:
           name: clawgress-livecd-iso
           path: build/iso/out
 
-      - name: Boot ISO in QEMU and run live self-test
+      - name: Boot ISO via GRUB/CDROM and check live selftest
         run: |
           ./build/iso/scripts/boot-test.sh build/iso/out/clawgress-bookworm-amd64.iso 700
 
-      - name: Upload boot test log
+      - name: E2E smoke suite (pexpect login + service checks)
+        run: |
+          python3 build/iso/scripts/test-iso-commands.py \
+            --iso build/iso/out/clawgress-bookworm-amd64.iso \
+            --suite smoke \
+            --boot-timeout 400 \
+            --log-dir build/iso/out/e2e-logs
+
+      - name: Upload boot test logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: boot-test-log
-          path: build/iso/out/boot-test.log
+          name: boot-test-logs
+          path: |
+            build/iso/out/boot-test.log
+            build/iso/out/e2e-logs/
           if-no-files-found: ignore

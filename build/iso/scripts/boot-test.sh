@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
-# Boot-test: mount ISO, extract kernel+initrd, boot directly via QEMU -kernel.
-# This bypasses GRUB entirely — no grub.cfg path issues, serial always works.
+# boot-test.sh — GRUB/CDROM boot test for the Clawgress live ISO.
+#
+# Boots the ISO via QEMU exactly as real hardware would: CDROM boot → GRUB →
+# live-boot → systemd.  Scans serial output for the live selftest PASS marker.
+# For surgical pexpect-based e2e testing run test-iso-commands.py instead.
 set -euo pipefail
 
 if [[ $# -lt 1 ]]; then
@@ -16,9 +19,8 @@ FAIL_MARKER="CLAWGRESS_LIVE_SELFTEST_FAIL"
 
 STD_BOOT_MARKERS=(
   "Reached target.*Multi-User"
-  "login:"
   "clawgress login:"
-  "ubuntu login:"
+  "login:"
 )
 
 mkdir -p "$(dirname "${LOG_PATH}")"
@@ -28,82 +30,56 @@ if [[ ! -f "${ISO_PATH}" ]]; then
   exit 1
 fi
 
-# --- Mount ISO and locate kernel + initrd ---
-MNT=$(mktemp -d)
-cleanup() { umount "${MNT}" 2>/dev/null || true; rm -rf "${MNT}"; }
-trap cleanup EXIT
-
-echo "Mounting ISO to inspect kernel paths..."
-mount -o loop,ro "${ISO_PATH}" "${MNT}"
-
-VMLINUZ=$(find "${MNT}" \( -name "vmlinuz" -o -name "vmlinuz-*" \) -not -name "*.efi" | head -1)
-INITRD=$(find "${MNT}" \( -name "initrd.img" -o -name "initrd.img-*" -o -name "initrd" \) | head -1)
-
-if [[ -z "${VMLINUZ}" ]]; then
-  echo "ERROR: no vmlinuz found in ISO" >&2
-  find "${MNT}" -name "vmlinuz*" >&2 || true
-  exit 1
-fi
-if [[ -z "${INITRD}" ]]; then
-  echo "ERROR: no initrd found in ISO" >&2
-  find "${MNT}" -name "initrd*" >&2 || true
-  exit 1
-fi
-
-echo "Kernel:  ${VMLINUZ}"
-echo "Initrd:  ${INITRD}"
-
 # --- KVM detection ---
 accel_args=()
-if [ -r /dev/kvm ]; then
+if [[ -r /dev/kvm ]]; then
   accel_args=(-enable-kvm -cpu host)
-  echo "KVM available -- using hardware virt (timeout: ${TIMEOUT_SECS}s)"
+  echo "KVM available — using hardware virt (timeout: ${TIMEOUT_SECS}s)"
 else
-  accel_args=(-machine accel=tcg)
-  echo "KVM not available -- using TCG (timeout: ${TIMEOUT_SECS}s)"
+  echo "KVM not available — using TCG (timeout: ${TIMEOUT_SECS}s)"
 fi
 
-BIOS_LOG="${LOG_PATH%.log}-bios.log"
+echo "Booting ISO via CDROM/GRUB: ${ISO_PATH}"
 
-# Boot directly: bypass GRUB, force serial console via kernel cmdline.
+# CDROM boot — GRUB loads from the ISO, exactly like real hardware.
+# -serial stdio: serial console (ttyS0) goes to stdout for log capture.
+# -monitor none: no QEMU monitor interleaved on stdio.
 set +e
 timeout "${TIMEOUT_SECS}" qemu-system-x86_64 \
   -m 2048 \
   -smp 2 \
   "${accel_args[@]}" \
-  -kernel "${VMLINUZ}" \
-  -initrd "${INITRD}" \
-  -append "boot=live components quiet console=ttyS0,115200n8 ---" \
-  -drive file="${ISO_PATH},format=raw,media=cdrom,readonly=on" \
+  -cdrom "${ISO_PATH}" \
+  -boot order=d,menu=off \
   -nographic \
-  -no-reboot >"${BIOS_LOG}" 2>&1
+  -serial stdio \
+  -monitor none \
+  -no-reboot >"${LOG_PATH}" 2>&1
 QEMU_EXIT=$?
 set -e
-
-cp "${BIOS_LOG}" "${LOG_PATH}" || true
 
 LINES=$(wc -l < "${LOG_PATH}" || echo 0)
 echo "QEMU exit ${QEMU_EXIT}, log lines: ${LINES}"
 
 if grep -q "${PASS_MARKER}" "${LOG_PATH}"; then
-  echo "ISO boot self-test: PASS (custom marker)"
+  echo "Boot test: PASS (${PASS_MARKER})"
   exit 0
 fi
 
 if grep -q "${FAIL_MARKER}" "${LOG_PATH}"; then
-  echo "ISO boot self-test: FAIL marker detected" >&2
+  echo "Boot test: FAIL marker detected" >&2
   tail -n 200 "${LOG_PATH}" >&2 || true
   exit 1
 fi
 
 for marker in "${STD_BOOT_MARKERS[@]}"; do
   if grep -qE "${marker}" "${LOG_PATH}"; then
-    echo "ISO boot self-test: PASS (standard boot marker: ${marker})"
+    echo "Boot test: PASS (standard marker: ${marker})"
     exit 0
   fi
 done
 
-echo "ISO boot self-test: timed out without PASS marker" >&2
+echo "Boot test: timed out without PASS marker" >&2
 echo "--- last 200 lines ---" >&2
 tail -n 200 "${LOG_PATH}" >&2 || true
 exit 1
