@@ -1,0 +1,43 @@
+# AppArmor profile for clawgress-admin-api
+# Install: cp to /etc/apparmor.d/clawgress-admin-api && apparmor_parser -r /etc/apparmor.d/clawgress-admin-api
+
+/usr/local/sbin/clawgress-admin-api {
+  #include <abstractions/base>
+  #include <abstractions/nameservice>
+
+  # Binary
+  /usr/local/sbin/clawgress-admin-api mr,
+
+  # Config files (read-write for CRUD)
+  /etc/clawgress/            rw,
+  /etc/clawgress/**          rw,
+
+  # Audit log (read for query)
+  /var/log/clawgress/        r,
+  /var/log/clawgress/**      r,
+
+  # State directory
+  /var/lib/clawgress/        rw,
+  /var/lib/clawgress/**      rw,
+
+  # Network: listen on admin port
+  network inet stream,
+  network inet6 stream,
+
+  # Signal gateway for reload
+  signal (send) set=(hup) peer=/usr/local/sbin/clawgress-gateway,
+
+  # pidof for SIGHUP
+  /usr/bin/pidof rix,
+  /proc/*/stat r,
+  /proc/*/cmdline r,
+
+  # /proc and /sys for Go runtime
+  /proc/sys/net/core/somaxconn r,
+  /sys/kernel/mm/transparent_hugepage/hpage_pmd_size r,
+
+  # Deny everything else
+  deny /home/** rwx,
+  deny /root/** rwx,
+  deny /tmp/** rwx,
+}

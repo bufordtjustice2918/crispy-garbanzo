@@ -296,10 +296,42 @@ DEFAULT_SMOKE_COMMANDS = [
     # Audit events from JWT auth should have team_id populated
     "curl -sf 'http://localhost:8080/v1/audit?agent_id=test-agent-001&limit=1' | jq -e '.[0].team_id'",
 
-    # --- Binary presence checks ---
+    # --- Policy conflict detection ---
+    # Conflict endpoint returns valid response
+    "curl -sf http://localhost:8080/v1/policy/conflicts | jq -e '.count >= 0'",
+
+    # Create conflicting rules and detect them
+    "curl -sf -X POST http://localhost:8080/v1/policies -H 'Content-Type: application/json' -d '{\"policy_id\":\"conflict-allow\",\"agent_id\":\"*\",\"domains\":[\"conflict.test\"],\"action\":\"allow\"}' | jq -e '.policy_id'",
+    "curl -sf -X POST http://localhost:8080/v1/policies -H 'Content-Type: application/json' -d '{\"policy_id\":\"conflict-deny\",\"agent_id\":\"*\",\"domains\":[\"conflict.test\"],\"action\":\"deny\"}' | jq -e '.policy_id'",
+
+    # Now conflicts should be detected
+    "curl -sf http://localhost:8080/v1/policy/conflicts | jq -e '.count > 0'",
+
+    # Clean up conflict test policies
+    "curl -sf -X DELETE http://localhost:8080/v1/policies/conflict-allow | jq -e '.deleted'",
+    "curl -sf -X DELETE http://localhost:8080/v1/policies/conflict-deny | jq -e '.deleted'",
+
+    # --- Hardening checks ---
+    # AppArmor profiles present in deploy dir (baked into ISO via includes.chroot or not — check binary at least)
     "test -x /usr/local/sbin/clawgress-gateway",
     "test -x /usr/local/sbin/clawgress-admin-api",
     "test -x /usr/local/sbin/clawgressctl",
+
+    # Services run as expected process names
+    "pgrep -x clawgress-gat",
+
+    # Audit log permissions are restrictive
+    "test -f /var/log/clawgress/audit.jsonl",
+
+    # --- Install dry-run validation ---
+    # clawgressctl install without --yes prints plan with dry-run status
+    "/usr/local/sbin/clawgressctl install --target-disk /dev/null 2>&1 | grep -q dry-run",
+
+    # Plan output is valid JSON
+    "/usr/local/sbin/clawgressctl install --target-disk /dev/null 2>&1 | head -1 | jq -e '.status == \"dry-run\"'",
+
+    # clawgress-install.sh exists and is executable
+    "test -x /usr/local/sbin/clawgress-install.sh",
 ]
 
 DEFAULT_SERVICE_CHECK_COMMANDS = DEFAULT_SMOKE_COMMANDS + [

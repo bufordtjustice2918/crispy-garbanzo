@@ -448,6 +448,19 @@ func main() {
 		writeJSON(w, http.StatusOK, map[string]string{"valid": "true"})
 	})
 
+	// GET /v1/policy/conflicts — detect policy conflicts
+	mux.HandleFunc("/v1/policy/conflicts", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "method not allowed"})
+			return
+		}
+		conflicts := policy.DetectConflicts(eng.Rules())
+		writeJSON(w, http.StatusOK, map[string]any{
+			"conflicts": conflicts,
+			"count":     len(conflicts),
+		})
+	})
+
 	// GET /v1/nft/render — render nftables rules from current policy
 	mux.HandleFunc("/v1/nft/render", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {

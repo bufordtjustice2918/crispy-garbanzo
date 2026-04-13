@@ -1,0 +1,38 @@
+# AppArmor profile for clawgress-gateway
+# Install: cp to /etc/apparmor.d/clawgress-gateway && apparmor_parser -r /etc/apparmor.d/clawgress-gateway
+
+/usr/local/sbin/clawgress-gateway {
+  # Base abstractions
+  #include <abstractions/base>
+  #include <abstractions/nameservice>
+
+  # Binary
+  /usr/local/sbin/clawgress-gateway mr,
+
+  # Config files (read-only)
+  /etc/clawgress/            r,
+  /etc/clawgress/**          r,
+
+  # Audit log (append-only)
+  /var/log/clawgress/        rw,
+  /var/log/clawgress/**      rw,
+
+  # State directory
+  /var/lib/clawgress/        rw,
+  /var/lib/clawgress/**      rw,
+
+  # Network: listen on proxy port, connect outbound
+  network inet stream,
+  network inet6 stream,
+  network inet dgram,
+  network inet6 dgram,
+
+  # /proc and /sys for Go runtime
+  /proc/sys/net/core/somaxconn r,
+  /sys/kernel/mm/transparent_hugepage/hpage_pmd_size r,
+
+  # Deny everything else
+  deny /home/** rwx,
+  deny /root/** rwx,
+  deny /tmp/** rwx,
+}

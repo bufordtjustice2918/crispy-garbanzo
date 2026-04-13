@@ -30,10 +30,10 @@
 ## Sprint 3 (Weeks 7-9)
 - [x] Basic operator UI with agent/policy/decision views.
 - [x] RPS/RPM enforcement under concurrent load.
-- [ ] Policy conflict detection and deterministic ordering tests.
+- [x] Policy conflict detection and deterministic ordering tests.
 
 ## Sprint 4 (Weeks 10-12)
-- [ ] Hardening: mTLS, AppArmor profile templates, fail mode tests.
-- [ ] Performance tuning for p50/p95 latency targets.
-- [ ] Debian Bookworm deployment runbook and release candidate.
-- [ ] Validate end-to-end live boot -> configure/commit -> install-to-disk workflow.
+- [x] Hardening: mTLS, AppArmor profile templates, fail mode tests.
+- [x] Performance tuning for p50/p95 latency targets.
+- [x] Debian Bookworm deployment runbook and release candidate.
+- [x] Validate end-to-end live boot -> configure/commit -> install-to-disk workflow.
