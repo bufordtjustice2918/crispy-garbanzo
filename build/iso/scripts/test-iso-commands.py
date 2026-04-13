@@ -188,6 +188,16 @@ DEFAULT_SMOKE_COMMANDS = [
     # After removing quota + SIGHUP, requests flow freely again
     "sleep 2 && test \"$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 --proxy http://test-agent-001:clawgress-test-key-001@localhost:3128 http://localhost:8080/healthz)\" = 200",
 
+    # --- JWT auth e2e ---
+    # Generate a JWT for test-agent-001 and use it via Bearer auth
+    "JWT=$(/usr/local/sbin/clawgressctl token --agent test-agent-001 --team test-team --project test-project --env live-test --secret clawgress-e2e-jwt-secret-key-32b --ttl 5m) && test \"$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 -x http://localhost:3128 -H \"Proxy-Authorization: Bearer $JWT\" http://localhost:8080/healthz)\" = 200",
+
+    # JWT with unknown agent still works (JWT creates synthetic agent, policy catch-all decides)
+    "JWT=$(/usr/local/sbin/clawgressctl token --agent jwt-only-agent --secret clawgress-e2e-jwt-secret-key-32b --ttl 5m) && test \"$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 -x http://localhost:3128 -H \"Proxy-Authorization: Bearer $JWT\" http://blocked.example.invalid/)\" = 403",
+
+    # Invalid JWT secret → 407 (signature check fails, no identity)
+    "JWT=$(/usr/local/sbin/clawgressctl token --agent test-agent-001 --secret wrong-secret-key-wont-work-here --ttl 5m) && test \"$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 -x http://localhost:3128 -H \"Proxy-Authorization: Bearer $JWT\" http://localhost:8080/healthz)\" = 407",
+
     # --- Admin UI e2e ---
     # UI serves 200
     "curl -sf -o /dev/null -w '%{http_code}' http://localhost:8080/ui/ | grep -q 200",

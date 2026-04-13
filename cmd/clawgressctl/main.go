@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -18,6 +19,7 @@ import (
 	"time"
 
 	"github.com/bufordtjustice2918/crispy-garbanzo/internal/cmdmap"
+	"github.com/bufordtjustice2918/crispy-garbanzo/internal/identity"
 )
 
 func main() {
@@ -42,6 +44,8 @@ func main() {
 		} else {
 			runShow(os.Args[2:])
 		}
+	case "token":
+		runToken(os.Args[2:])
 	case "install":
 		runInstall(os.Args[2:])
 	default:
@@ -341,12 +345,39 @@ func runShowAudit(args []string) {
 	fmt.Printf("\n%d events\n", len(events))
 }
 
+func runToken(args []string) {
+	fs := flag.NewFlagSet("token", flag.ExitOnError)
+	agentID := fs.String("agent", "", "agent_id claim (required)")
+	teamID := fs.String("team", "", "team_id claim")
+	projectID := fs.String("project", "", "project_id claim")
+	env := fs.String("env", "", "environment claim")
+	secret := fs.String("secret", "", "HMAC-SHA256 secret (required)")
+	ttl := fs.Duration("ttl", time.Hour, "token TTL")
+	fs.Parse(args)
+
+	if *agentID == "" || *secret == "" {
+		fatal("usage: clawgressctl token --agent <id> --secret <key> [--team t] [--project p] [--env e] [--ttl 1h]")
+	}
+
+	now := time.Now()
+	claims := identity.JWTClaims{
+		AgentID:     *agentID,
+		TeamID:      *teamID,
+		ProjectID:   *projectID,
+		Environment: *env,
+		Iat:         now.Unix(),
+		Exp:         now.Add(*ttl).Unix(),
+	}
+	token := identity.SignJWT(claims, []byte(*secret))
+	fmt.Println(token)
+}
+
 func runInstall(args []string) {
 	fs := flag.NewFlagSet("install", flag.ExitOnError)
 	targetDisk := fs.String("target-disk", "", "install target disk (example: /dev/sda)")
 	hostname := fs.String("hostname", "clawgress", "target hostname")
 	autoReboot := fs.Bool("reboot", false, "reboot after install")
-	yes := fs.Bool("yes", false, "confirm install plan")
+	yes := fs.Bool("yes", false, "confirm and execute install")
 	fs.Parse(args)
 
 	if *targetDisk == "" {
@@ -360,17 +391,43 @@ func runInstall(args []string) {
 		"hostname":              *hostname,
 		"auto_reboot":           *autoReboot,
 		"confirmed":             *yes,
-		"status":                "planned",
 		"requires_root":         true,
 		"timestamp":             time.Now().UTC().Format(time.RFC3339),
-		"next_step":             "sudo clawgress-install --apply <generated-plan>",
-		"mvp_note":              "Installer execution is planned in MVP scope; this command currently emits a validated plan.",
 		"transactional_profile": "commit/configure",
 	}
-	prettyPrint(plan)
 
 	if !*yes {
-		fmt.Println("pass --yes to confirm this installation plan")
+		plan["status"] = "dry-run"
+		prettyPrint(plan)
+		fmt.Println("\npass --yes to execute this installation plan")
+		return
+	}
+
+	plan["status"] = "executing"
+	prettyPrint(plan)
+
+	// Build the installer command.
+	installArgs := []string{
+		"--target-disk", *targetDisk,
+		"--hostname", *hostname,
+		"--apply",
+	}
+
+	installer := "/usr/local/sbin/clawgress-install.sh"
+	cmd := exec.Command(installer, installArgs...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Stdin = os.Stdin
+
+	fmt.Printf("\n--- Executing: %s %s ---\n\n", installer, strings.Join(installArgs, " "))
+	if err := cmd.Run(); err != nil {
+		fatalf("install failed: %v", err)
+	}
+	fmt.Println("\n--- Install complete ---")
+
+	if *autoReboot {
+		fmt.Println("Rebooting...")
+		exec.Command("reboot").Run()
 	}
 }
 

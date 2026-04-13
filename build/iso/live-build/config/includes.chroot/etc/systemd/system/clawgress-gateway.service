@@ -8,7 +8,9 @@ ExecStart=/usr/local/sbin/clawgress-gateway
 Environment=CLAWGRESS_PROXY_LISTEN=:3128
 Environment=CLAWGRESS_AGENTS_FILE=/etc/clawgress/agents.json
 Environment=CLAWGRESS_POLICY_FILE=/etc/clawgress/policy.json
+Environment=CLAWGRESS_QUOTA_FILE=/etc/clawgress/quotas.json
 Environment=CLAWGRESS_AUDIT_FILE=/var/log/clawgress/audit.jsonl
+Environment=CLAWGRESS_JWT_SECRET=clawgress-e2e-jwt-secret-key-32b
 Restart=on-failure
 RestartSec=5
 StandardOutput=journal

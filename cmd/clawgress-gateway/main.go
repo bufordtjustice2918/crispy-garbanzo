@@ -40,6 +40,7 @@ func main() {
 	policyFile := getenv("CLAWGRESS_POLICY_FILE", "/etc/clawgress/policy.json")
 	quotaFile := getenv("CLAWGRESS_QUOTA_FILE", "/etc/clawgress/quotas.json")
 	auditFile := getenv("CLAWGRESS_AUDIT_FILE", "/var/log/clawgress/audit.jsonl")
+	jwtSecret := getenv("CLAWGRESS_JWT_SECRET", "")
 
 	reg, err := identity.NewRegistry(agentsFile)
 	if err != nil {
@@ -80,7 +81,7 @@ func main() {
 		}
 	}()
 
-	h := &proxyHandler{reg: reg, eng: eng, lim: lim, alog: alog}
+	h := &proxyHandler{reg: reg, eng: eng, lim: lim, alog: alog, jwtSecret: []byte(jwtSecret)}
 	srv := &http.Server{
 		Addr:         listenAddr,
 		Handler:      h,
@@ -101,21 +102,36 @@ func main() {
 // ---------------------------------------------------------------------------
 
 type proxyHandler struct {
-	reg  *identity.Registry
-	eng  *policy.Engine
-	lim  *quota.Limiter
-	alog *audit.Log
+	reg       *identity.Registry
+	eng       *policy.Engine
+	lim       *quota.Limiter
+	alog      *audit.Log
+	jwtSecret []byte
 }
 
 func (h *proxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	reqID := newRequestID()
 
-	agentID, apiKey := extractProxyAuth(r)
+	agentID, apiKey, bearerToken := extractProxyAuth(r)
 
 	var ag *identity.Agent
 	if apiKey != "" {
 		ag = h.reg.LookupByKey(apiKey)
+	}
+	// Fall back to JWT Bearer token if no valid API key.
+	if ag == nil && bearerToken != "" && len(h.jwtSecret) > 0 {
+		if claims, err := identity.VerifyJWT(bearerToken, h.jwtSecret); err == nil {
+			agentID = claims.AgentID
+			// Build a synthetic Agent from JWT claims for the request lifecycle.
+			ag = &identity.Agent{
+				AgentID:     claims.AgentID,
+				TeamID:      claims.TeamID,
+				ProjectID:   claims.ProjectID,
+				Environment: claims.Environment,
+				Status:      "active",
+			}
+		}
 	}
 
 	dest := requestHost(r)
@@ -294,26 +310,30 @@ func (h *proxyHandler) writeAudit(e audit.Event) {
 // Helpers
 // ---------------------------------------------------------------------------
 
-// extractProxyAuth decodes Proxy-Authorization: Basic base64(agent_id:api_key).
-// Returns empty strings if the header is absent or malformed.
-func extractProxyAuth(r *http.Request) (agentID, apiKey string) {
+// extractProxyAuth decodes Proxy-Authorization header.
+// Supports Basic base64(agent_id:api_key) and Bearer <jwt>.
+// Returns (agentID, apiKey, bearerToken). At most one of apiKey/bearerToken is non-empty.
+func extractProxyAuth(r *http.Request) (agentID, apiKey, bearerToken string) {
 	auth := r.Header.Get("Proxy-Authorization")
 	if auth == "" {
-		return "", ""
+		return "", "", ""
+	}
+	if strings.HasPrefix(auth, "Bearer ") {
+		return "", "", strings.TrimPrefix(auth, "Bearer ")
 	}
 	const prefix = "Basic "
 	if !strings.HasPrefix(auth, prefix) {
-		return "", ""
+		return "", "", ""
 	}
 	decoded, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(auth, prefix))
 	if err != nil {
-		return "", ""
+		return "", "", ""
 	}
 	parts := strings.SplitN(string(decoded), ":", 2)
 	if len(parts) != 2 {
-		return "", ""
+		return "", "", ""
 	}
-	return parts[0], parts[1]
+	return parts[0], parts[1], ""
 }
 
 func requestHost(r *http.Request) string {
