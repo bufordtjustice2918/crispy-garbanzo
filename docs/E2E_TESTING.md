@@ -22,7 +22,7 @@ Runs in a `debian:bookworm` container (privileged).
 
 ### Job 2: `boot-test`
 
-Runs in an `ubuntu:24.04` container (privileged, for KVM access).
+Runs in a `debian:bookworm` container (privileged, for KVM access).
 
 #### Step 1 — GRUB/CDROM boot check (`boot-test.sh`)
 
@@ -95,7 +95,7 @@ One shell command per line, `#` for comments.
 ### Prerequisites
 
 ```bash
-# Debian/Ubuntu
+# Debian Bookworm
 sudo apt-get install qemu-system-x86 qemu-utils python3-pexpect
 
 # Build the ISO first (requires live-build in a debian:bookworm env)

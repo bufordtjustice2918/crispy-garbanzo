@@ -4,7 +4,7 @@
 - [x] Define transactional `opmode=configure` and `opmode=commit` behavior.
 - [x] Add minimal admin API endpoints for configure, commit, and state.
 - [x] Add CLI client commands for configure, commit, and state.
-- [x] Add Ubuntu 24.04 + `nftables` baseline deployment artifacts.
+- [x] Add Debian Bookworm + `nftables` baseline deployment artifacts.
 - [ ] Add identity validation middleware (JWT + API key) to admin API.
 - [ ] Add signed policy bundle generation and verification.
 - [ ] Add per-agent rate-limit enforcement service logic.
@@ -23,7 +23,7 @@
 ## Sprint 2 (Weeks 4-6)
 - [ ] Gateway request path skeleton: identity -> policy -> quota -> decision.
 - [ ] nftables set/map generation from active policy.
-- [ ] Transparent gateway mode bootstrap on Ubuntu 24.04.
+- [ ] Transparent gateway mode bootstrap on Debian Bookworm.
 - [ ] Decision event schema validation and replay tests.
 - [ ] Build SquashFS root image and bootable LiveCD ISO pipeline.
 
@@ -35,5 +35,5 @@
 ## Sprint 4 (Weeks 10-12)
 - [ ] Hardening: mTLS, AppArmor profile templates, fail mode tests.
 - [ ] Performance tuning for p50/p95 latency targets.
-- [ ] Ubuntu 24.04 deployment runbook and release candidate.
+- [ ] Debian Bookworm deployment runbook and release candidate.
 - [ ] Validate end-to-end live boot -> configure/commit -> install-to-disk workflow.

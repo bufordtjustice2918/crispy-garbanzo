@@ -103,7 +103,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     container:
-      image: ubuntu:24.04
+      image: debian:bookworm
       options: --privileged
     steps:
       - name: Install dependencies
