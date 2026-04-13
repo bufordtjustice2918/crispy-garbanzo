@@ -16,6 +16,7 @@ import (
 	"github.com/bufordtjustice2918/crispy-garbanzo/internal/identity"
 	"github.com/bufordtjustice2918/crispy-garbanzo/internal/opmode"
 	"github.com/bufordtjustice2918/crispy-garbanzo/internal/policy"
+	"github.com/bufordtjustice2918/crispy-garbanzo/internal/quota"
 )
 
 func main() {
@@ -25,6 +26,7 @@ func main() {
 	defaultOpsMode := getenv("CLAWGRESS_OPS_MODE", enforcer.OpsModeDryRun)
 	agentsFile := getenv("CLAWGRESS_AGENTS_FILE", "/etc/clawgress/agents.json")
 	policyFile := getenv("CLAWGRESS_POLICY_FILE", "/etc/clawgress/policy.json")
+	quotaFile := getenv("CLAWGRESS_QUOTA_FILE", "/etc/clawgress/quotas.json")
 	auditFile := getenv("CLAWGRESS_AUDIT_FILE", "/var/log/clawgress/audit.jsonl")
 
 	store, err := opmode.NewStore(stateDir)
@@ -40,6 +42,11 @@ func main() {
 	eng, err := policy.NewEngine(policyFile)
 	if err != nil {
 		log.Fatalf("load policy engine: %v", err)
+	}
+
+	qlim, err := quota.NewLimiter(quotaFile)
+	if err != nil {
+		log.Fatalf("load quota limiter: %v", err)
 	}
 
 	mux := http.NewServeMux()
@@ -296,6 +303,74 @@ func main() {
 	})
 
 	// -----------------------------------------------------------------------
+	// Quota CRUD endpoints
+	// -----------------------------------------------------------------------
+
+	mux.HandleFunc("/v1/quotas", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			writeJSON(w, http.StatusOK, qlim.All())
+		case http.MethodPost:
+			var lim quota.Limit
+			if err := json.NewDecoder(r.Body).Decode(&lim); err != nil {
+				writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON body"})
+				return
+			}
+			if lim.AgentID == "" {
+				writeJSON(w, http.StatusBadRequest, map[string]string{"error": "agent_id is required"})
+				return
+			}
+			if lim.RPS <= 0 && lim.RPM <= 0 {
+				writeJSON(w, http.StatusBadRequest, map[string]string{"error": "at least one of rps or rpm must be > 0"})
+				return
+			}
+			if lim.Mode != "" && lim.Mode != "hard_stop" && lim.Mode != "alert_only" {
+				writeJSON(w, http.StatusBadRequest, map[string]string{"error": "mode must be 'hard_stop' or 'alert_only'"})
+				return
+			}
+			qlim.Set(lim)
+			if err := qlim.Save(); err != nil {
+				writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+				return
+			}
+			signalGateway()
+			writeJSON(w, http.StatusCreated, lim)
+		default:
+			writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "method not allowed"})
+		}
+	})
+
+	mux.HandleFunc("/v1/quotas/", func(w http.ResponseWriter, r *http.Request) {
+		id := strings.TrimPrefix(r.URL.Path, "/v1/quotas/")
+		if id == "" {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "agent_id required in path"})
+			return
+		}
+		switch r.Method {
+		case http.MethodGet:
+			lim := qlim.LookupByID(id)
+			if lim == nil {
+				writeJSON(w, http.StatusNotFound, map[string]string{"error": "quota not found"})
+				return
+			}
+			writeJSON(w, http.StatusOK, lim)
+		case http.MethodDelete:
+			if !qlim.Remove(id) {
+				writeJSON(w, http.StatusNotFound, map[string]string{"error": "quota not found"})
+				return
+			}
+			if err := qlim.Save(); err != nil {
+				writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+				return
+			}
+			signalGateway()
+			writeJSON(w, http.StatusOK, map[string]string{"deleted": id})
+		default:
+			writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "method not allowed"})
+		}
+	})
+
+	// -----------------------------------------------------------------------
 	// Audit query endpoint
 	// -----------------------------------------------------------------------
 
@@ -328,8 +403,8 @@ func main() {
 		writeJSON(w, http.StatusOK, events)
 	})
 
-	log.Printf("clawgress-admin-api listening on %s (state dir: %s, agents: %s, policy: %s, audit: %s)",
-		listenAddr, stateDir, agentsFile, policyFile, auditFile)
+	log.Printf("clawgress-admin-api listening on %s (state=%s agents=%s policy=%s quotas=%s audit=%s)",
+		listenAddr, stateDir, agentsFile, policyFile, quotaFile, auditFile)
 	if err := http.ListenAndServe(listenAddr, mux); err != nil {
 		log.Fatalf("http server failed: %v", err)
 	}

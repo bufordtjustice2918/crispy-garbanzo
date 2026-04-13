@@ -76,11 +76,13 @@ outbound request is identity-checked, policy-evaluated, and audit-logged.
 ---
 
 ## Step 4 — Quota / Rate Limiter
-- ⬜ `internal/quota`        — in-memory token bucket per agent_id (RPS + RPM)
-- ⬜ Wire quota check into gateway request path (after identity, before policy)
-- ⬜ `POST /v1/quotas`       — set per-agent limits
-- ⬜ Enforcement modes: `hard_stop` (429), `alert_only` (log + allow)
-- ⬜ E2E: configure low RPS limit, burst past it, verify 429 responses
+- ✅ `internal/quota/bucket.go` — token bucket per agent_id (RPS + RPM, independent buckets)
+- ✅ Wire quota check into gateway: after identity, before policy → 429 on hard_stop
+- ✅ `POST/GET/DELETE /v1/quotas`, `/v1/quotas/{agent_id}` — full CRUD
+- ✅ Enforcement modes: `hard_stop` (429 reject) and `alert_only` (log + allow)
+- ✅ SIGHUP gateway on quota write for live reload
+- ✅ E2E: create 1-RPS quota, burst 5 requests, verify 429, audit quota-exceeded entry
+- ✅ E2E: delete quota, verify normal flow resumes
 
 ---
 

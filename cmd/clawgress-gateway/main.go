@@ -29,6 +29,7 @@ import (
 	"github.com/bufordtjustice2918/crispy-garbanzo/internal/audit"
 	"github.com/bufordtjustice2918/crispy-garbanzo/internal/identity"
 	"github.com/bufordtjustice2918/crispy-garbanzo/internal/policy"
+	"github.com/bufordtjustice2918/crispy-garbanzo/internal/quota"
 )
 
 var reqSeq uint64
@@ -37,6 +38,7 @@ func main() {
 	listenAddr := getenv("CLAWGRESS_PROXY_LISTEN", ":3128")
 	agentsFile := getenv("CLAWGRESS_AGENTS_FILE", "/etc/clawgress/agents.json")
 	policyFile := getenv("CLAWGRESS_POLICY_FILE", "/etc/clawgress/policy.json")
+	quotaFile := getenv("CLAWGRESS_QUOTA_FILE", "/etc/clawgress/quotas.json")
 	auditFile := getenv("CLAWGRESS_AUDIT_FILE", "/var/log/clawgress/audit.jsonl")
 
 	reg, err := identity.NewRegistry(agentsFile)
@@ -47,6 +49,11 @@ func main() {
 	eng, err := policy.NewEngine(policyFile)
 	if err != nil {
 		log.Fatalf("load policy engine: %v", err)
+	}
+
+	lim, err := quota.NewLimiter(quotaFile)
+	if err != nil {
+		log.Fatalf("load quota limiter: %v", err)
 	}
 
 	alog, err := audit.NewLog(auditFile)
@@ -60,17 +67,20 @@ func main() {
 		ch := make(chan os.Signal, 1)
 		signal.Notify(ch, syscall.SIGHUP)
 		for range ch {
-			log.Println("SIGHUP: reloading identity and policy")
+			log.Println("SIGHUP: reloading identity, policy, and quotas")
 			if err := reg.Load(); err != nil {
 				log.Printf("reload identity: %v", err)
 			}
 			if err := eng.Load(); err != nil {
 				log.Printf("reload policy: %v", err)
 			}
+			if err := lim.Load(); err != nil {
+				log.Printf("reload quotas: %v", err)
+			}
 		}
 	}()
 
-	h := &proxyHandler{reg: reg, eng: eng, alog: alog}
+	h := &proxyHandler{reg: reg, eng: eng, lim: lim, alog: alog}
 	srv := &http.Server{
 		Addr:         listenAddr,
 		Handler:      h,
@@ -78,8 +88,8 @@ func main() {
 		WriteTimeout: 0, // tunnels must not time out writes
 	}
 
-	log.Printf("clawgress-gateway listening on %s (agents=%s policy=%s audit=%s)",
-		listenAddr, agentsFile, policyFile, auditFile)
+	log.Printf("clawgress-gateway listening on %s (agents=%s policy=%s quotas=%s audit=%s)",
+		listenAddr, agentsFile, policyFile, quotaFile, auditFile)
 
 	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatalf("listen: %v", err)
@@ -93,6 +103,7 @@ func main() {
 type proxyHandler struct {
 	reg  *identity.Registry
 	eng  *policy.Engine
+	lim  *quota.Limiter
 	alog *audit.Log
 }
 
@@ -123,6 +134,29 @@ func (h *proxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Proxy-Authenticate", `Basic realm="clawgress"`)
 		http.Error(w, "407 Proxy Authentication Required — no valid identity", http.StatusProxyAuthRequired)
 		return
+	}
+
+	// --- Quota check ---
+	qd := h.lim.Check(ag.AgentID)
+	if !qd.Allowed {
+		h.writeAudit(audit.Event{
+			RequestID:   reqID,
+			AgentID:     ag.AgentID,
+			TeamID:      ag.TeamID,
+			ProjectID:   ag.ProjectID,
+			Environment: ag.Environment,
+			Destination: dest,
+			Method:      r.Method,
+			Decision:    "deny",
+			PolicyID:    "quota-exceeded",
+			LatencyMs:   time.Since(start).Milliseconds(),
+		})
+		http.Error(w, fmt.Sprintf("429 Too Many Requests — %s", qd.Reason), http.StatusTooManyRequests)
+		return
+	}
+	if qd.Reason != "" {
+		// alert_only mode: log but continue
+		log.Printf("quota alert: agent=%s %s", ag.AgentID, qd.Reason)
 	}
 
 	// --- Policy check ---

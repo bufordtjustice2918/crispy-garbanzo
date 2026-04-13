@@ -162,6 +162,31 @@ DEFAULT_SMOKE_COMMANDS = [
 
     # clawgressctl show audit --agent filter
     "clawgressctl show audit --json --agent test-agent-001 | jq -e 'all(.agent_id == \"test-agent-001\")'",
+
+    # --- Quota / Rate Limiter e2e ---
+    # No quotas initially — list returns empty array
+    "curl -sf http://localhost:8080/v1/quotas | jq -e 'type == \"array\"'",
+
+    # Create a strict 1 RPS quota for test-agent-001 (hard_stop mode)
+    "curl -sf -X POST http://localhost:8080/v1/quotas -H 'Content-Type: application/json' -d '{\"agent_id\":\"test-agent-001\",\"rps\":1,\"mode\":\"hard_stop\"}' | jq -e '.agent_id == \"test-agent-001\"'",
+
+    # Verify quota appears in list
+    "curl -sf http://localhost:8080/v1/quotas/test-agent-001 | jq -e '.rps == 1'",
+
+    # Wait for SIGHUP to propagate, then burst 5 rapid requests — at least one should be 429
+    "sleep 2 && CODES=''; for i in 1 2 3 4 5; do CODES=\"$CODES $(curl -s -o /dev/null -w '%{http_code}' --max-time 5 --proxy http://test-agent-001:clawgress-test-key-001@localhost:3128 http://localhost:8080/healthz)\"; done; echo \"$CODES\" | grep -q 429",
+
+    # Audit log should now have a quota-exceeded entry
+    "sudo jq -r '.policy_id' /var/log/clawgress/audit.jsonl | grep -q quota-exceeded",
+
+    # Delete the quota
+    "curl -sf -X DELETE http://localhost:8080/v1/quotas/test-agent-001 | jq -e '.deleted == \"test-agent-001\"'",
+
+    # Verify quota gone (404)
+    "sleep 1 && test \"$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/v1/quotas/test-agent-001)\" = 404",
+
+    # After removing quota + SIGHUP, requests flow freely again
+    "sleep 2 && test \"$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 --proxy http://test-agent-001:clawgress-test-key-001@localhost:3128 http://localhost:8080/healthz)\" = 200",
 ]
 
 DEFAULT_SERVICE_CHECK_COMMANDS = DEFAULT_SMOKE_COMMANDS + [
