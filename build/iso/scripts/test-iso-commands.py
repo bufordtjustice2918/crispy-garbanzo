@@ -80,16 +80,16 @@ DEFAULT_SMOKE_COMMANDS = [
     "test -s /var/log/clawgress/audit.jsonl",
 
     # Audit log is valid JSONL (every line parses as JSON)
-    "jq -c . /var/log/clawgress/audit.jsonl | wc -l | grep -qv '^0$'",
+    "sudo jq -c . /var/log/clawgress/audit.jsonl | wc -l | grep -qv '^0$'",
 
     # Audit log contains at least one deny decision
-    "jq -r '.decision' /var/log/clawgress/audit.jsonl | grep -q deny",
+    "sudo jq -r '.decision' /var/log/clawgress/audit.jsonl | grep -q deny",
 
     # Audit log contains at least one allow decision
-    "jq -r '.decision' /var/log/clawgress/audit.jsonl | grep -q allow",
+    "sudo jq -r '.decision' /var/log/clawgress/audit.jsonl | grep -q allow",
 
     # Audit events have required fields
-    "jq -e '.request_id and .agent_id and .destination and .decision and .policy_id' /var/log/clawgress/audit.jsonl | grep -q true",
+    "sudo jq -e '.request_id and .agent_id and .destination and .decision and .policy_id' /var/log/clawgress/audit.jsonl | grep -q true",
 ]
 
 DEFAULT_SERVICE_CHECK_COMMANDS = DEFAULT_SMOKE_COMMANDS + [
