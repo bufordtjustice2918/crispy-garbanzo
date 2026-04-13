@@ -1,8 +1,10 @@
 package main
 
 import (
+	"embed"
 	"encoding/json"
 	"errors"
+	"io/fs"
 	"log"
 	"net/http"
 	"os"
@@ -18,6 +20,9 @@ import (
 	"github.com/bufordtjustice2918/crispy-garbanzo/internal/policy"
 	"github.com/bufordtjustice2918/crispy-garbanzo/internal/quota"
 )
+
+//go:embed ui
+var uiFS embed.FS
 
 func main() {
 	stateDir := getenv("CLAWGRESS_STATE_DIR", "state")
@@ -401,6 +406,19 @@ func main() {
 			events = []audit.Event{}
 		}
 		writeJSON(w, http.StatusOK, events)
+	})
+
+	// -----------------------------------------------------------------------
+	// Admin UI (embedded)
+	// -----------------------------------------------------------------------
+
+	uiSub, err := fs.Sub(uiFS, "ui")
+	if err != nil {
+		log.Fatalf("embed ui: %v", err)
+	}
+	mux.Handle("/ui/", http.StripPrefix("/ui/", http.FileServer(http.FS(uiSub))))
+	mux.HandleFunc("/ui", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/ui/", http.StatusMovedPermanently)
 	})
 
 	log.Printf("clawgress-admin-api listening on %s (state=%s agents=%s policy=%s quotas=%s audit=%s)",

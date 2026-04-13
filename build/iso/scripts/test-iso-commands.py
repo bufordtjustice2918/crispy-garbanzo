@@ -187,6 +187,16 @@ DEFAULT_SMOKE_COMMANDS = [
 
     # After removing quota + SIGHUP, requests flow freely again
     "sleep 2 && test \"$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 --proxy http://test-agent-001:clawgress-test-key-001@localhost:3128 http://localhost:8080/healthz)\" = 200",
+
+    # --- Admin UI e2e ---
+    # UI serves 200
+    "curl -sf -o /dev/null -w '%{http_code}' http://localhost:8080/ui/ | grep -q 200",
+
+    # UI contains expected content
+    "curl -sf http://localhost:8080/ui/ | grep -q 'Clawgress Admin'",
+
+    # UI HTML is valid enough to contain key sections
+    "curl -sf http://localhost:8080/ui/ | grep -q '/v1/agents'",
 ]
 
 DEFAULT_SERVICE_CHECK_COMMANDS = DEFAULT_SMOKE_COMMANDS + [

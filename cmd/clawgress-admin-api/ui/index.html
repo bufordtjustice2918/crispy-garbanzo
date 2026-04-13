@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clawgress Admin</title>
+<style>
+  :root { --bg: #0d1117; --surface: #161b22; --border: #30363d; --text: #c9d1d9; --muted: #8b949e; --accent: #58a6ff; --green: #3fb950; --red: #f85149; --yellow: #d29922; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; padding: 1rem; }
+  h1 { font-size: 1.4rem; margin-bottom: 1rem; color: var(--accent); }
+  h2 { font-size: 1.1rem; margin: 1.5rem 0 0.5rem; color: var(--text); border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 1rem; }
+  .full { grid-column: 1 / -1; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  th { text-align: left; color: var(--muted); font-weight: 600; padding: 0.4rem 0.6rem; border-bottom: 1px solid var(--border); }
+  td { padding: 0.4rem 0.6rem; border-bottom: 1px solid var(--border); }
+  tr:last-child td { border-bottom: none; }
+  .badge { display: inline-block; padding: 0.1rem 0.5rem; border-radius: 10px; font-size: 0.75rem; font-weight: 600; }
+  .badge-active { background: rgba(63,185,80,0.15); color: var(--green); }
+  .badge-disabled { background: rgba(248,81,73,0.15); color: var(--red); }
+  .badge-allow { background: rgba(63,185,80,0.15); color: var(--green); }
+  .badge-deny { background: rgba(248,81,73,0.15); color: var(--red); }
+  .badge-hard_stop { background: rgba(248,81,73,0.15); color: var(--red); }
+  .badge-alert_only { background: rgba(210,153,34,0.15); color: var(--yellow); }
+  .count { color: var(--muted); font-size: 0.85rem; font-weight: normal; }
+  .empty { color: var(--muted); font-style: italic; padding: 1rem; text-align: center; }
+  .ts { color: var(--muted); font-size: 0.8rem; }
+  .health { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; }
+  .dot-ok { background: var(--green); }
+  .dot-err { background: var(--red); }
+  .refresh-btn { background: var(--surface); border: 1px solid var(--border); color: var(--accent); padding: 0.3rem 0.8rem; border-radius: 4px; cursor: pointer; font-size: 0.8rem; }
+  .refresh-btn:hover { background: var(--border); }
+  .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Clawgress Admin</h1>
+  <div>
+    <span id="health" class="health"></span>
+    <button class="refresh-btn" onclick="loadAll()">Refresh</button>
+  </div>
+</div>
+
+<div class="grid">
+  <div class="card">
+    <h2>Agents <span id="agent-count" class="count"></span></h2>
+    <div id="agents"><div class="empty">Loading...</div></div>
+  </div>
+
+  <div class="card">
+    <h2>Policies <span id="policy-count" class="count"></span></h2>
+    <div id="policies"><div class="empty">Loading...</div></div>
+  </div>
+
+  <div class="card">
+    <h2>Quotas <span id="quota-count" class="count"></span></h2>
+    <div id="quotas"><div class="empty">Loading...</div></div>
+  </div>
+
+  <div class="card">
+    <h2>Health</h2>
+    <div id="health-detail"><div class="empty">Loading...</div></div>
+  </div>
+
+  <div class="card full">
+    <h2>Recent Decisions <span id="audit-count" class="count"></span></h2>
+    <div id="audit"><div class="empty">Loading...</div></div>
+  </div>
+</div>
+
+<script>
+const API = window.location.origin;
+
+async function fetchJSON(path) {
+  const r = await fetch(API + path);
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json();
+}
+
+function badge(text) {
+  const cls = 'badge-' + text;
+  return `<span class="badge ${cls}">${text}</span>`;
+}
+
+function esc(s) {
+  if (s == null) return '';
+  const d = document.createElement('div');
+  d.textContent = String(s);
+  return d.innerHTML;
+}
+
+function shortTs(ts) {
+  if (!ts) return '';
+  return `<span class="ts">${esc(ts.substring(0, 19).replace('T', ' '))}</span>`;
+}
+
+async function loadAgents() {
+  try {
+    const agents = await fetchJSON('/v1/agents');
+    document.getElementById('agent-count').textContent = `(${agents.length})`;
+    if (agents.length === 0) {
+      document.getElementById('agents').innerHTML = '<div class="empty">No agents registered</div>';
+      return;
+    }
+    let html = '<table><tr><th>Agent ID</th><th>Team</th><th>Project</th><th>Env</th><th>Status</th></tr>';
+    for (const a of agents) {
+      html += `<tr><td>${esc(a.agent_id)}</td><td>${esc(a.team_id)}</td><td>${esc(a.project_id)}</td><td>${esc(a.environment)}</td><td>${badge(a.status)}</td></tr>`;
+    }
+    html += '</table>';
+    document.getElementById('agents').innerHTML = html;
+  } catch (e) {
+    document.getElementById('agents').innerHTML = `<div class="empty">Error: ${esc(e.message)}</div>`;
+  }
+}
+
+async function loadPolicies() {
+  try {
+    const policies = await fetchJSON('/v1/policies');
+    document.getElementById('policy-count').textContent = `(${policies.length})`;
+    if (policies.length === 0) {
+      document.getElementById('policies').innerHTML = '<div class="empty">No policies configured</div>';
+      return;
+    }
+    let html = '<table><tr><th>Policy ID</th><th>Agent</th><th>Domains</th><th>Action</th></tr>';
+    for (const p of policies) {
+      html += `<tr><td>${esc(p.policy_id)}</td><td>${esc(p.agent_id)}</td><td>${esc((p.domains||[]).join(', '))}</td><td>${badge(p.action)}</td></tr>`;
+    }
+    html += '</table>';
+    document.getElementById('policies').innerHTML = html;
+  } catch (e) {
+    document.getElementById('policies').innerHTML = `<div class="empty">Error: ${esc(e.message)}</div>`;
+  }
+}
+
+async function loadQuotas() {
+  try {
+    const quotas = await fetchJSON('/v1/quotas');
+    document.getElementById('quota-count').textContent = `(${quotas.length})`;
+    if (quotas.length === 0) {
+      document.getElementById('quotas').innerHTML = '<div class="empty">No quotas configured</div>';
+      return;
+    }
+    let html = '<table><tr><th>Agent ID</th><th>RPS</th><th>RPM</th><th>Mode</th></tr>';
+    for (const q of quotas) {
+      html += `<tr><td>${esc(q.agent_id)}</td><td>${q.rps || '-'}</td><td>${q.rpm || '-'}</td><td>${badge(q.mode)}</td></tr>`;
+    }
+    html += '</table>';
+    document.getElementById('quotas').innerHTML = html;
+  } catch (e) {
+    document.getElementById('quotas').innerHTML = `<div class="empty">Error: ${esc(e.message)}</div>`;
+  }
+}
+
+async function loadHealth() {
+  try {
+    const h = await fetchJSON('/healthz');
+    document.getElementById('health').innerHTML = `<span class="dot dot-ok"></span> <span style="color:var(--green);font-size:0.85rem">Healthy</span>`;
+    document.getElementById('health-detail').innerHTML = `<table><tr><th>Field</th><th>Value</th></tr><tr><td>Status</td><td>${badge('active')}</td></tr><tr><td>API</td><td>${esc(API)}</td></tr></table>`;
+  } catch (e) {
+    document.getElementById('health').innerHTML = `<span class="dot dot-err"></span> <span style="color:var(--red);font-size:0.85rem">Unhealthy</span>`;
+    document.getElementById('health-detail').innerHTML = `<div class="empty">Error: ${esc(e.message)}</div>`;
+  }
+}
+
+async function loadAudit() {
+  try {
+    const events = await fetchJSON('/v1/audit?limit=25');
+    document.getElementById('audit-count').textContent = `(last ${events.length})`;
+    if (events.length === 0) {
+      document.getElementById('audit').innerHTML = '<div class="empty">No audit events yet</div>';
+      return;
+    }
+    let html = '<table><tr><th>Time</th><th>Agent</th><th>Method</th><th>Destination</th><th>Decision</th><th>Policy</th><th>Latency</th></tr>';
+    for (const e of events.reverse()) {
+      html += `<tr><td>${shortTs(e.timestamp)}</td><td>${esc(e.agent_id)}</td><td>${esc(e.http_method)}</td><td>${esc(e.destination)}</td><td>${badge(e.decision)}</td><td>${esc(e.policy_id)}</td><td>${e.latency_ms}ms</td></tr>`;
+    }
+    html += '</table>';
+    document.getElementById('audit').innerHTML = html;
+  } catch (e) {
+    document.getElementById('audit').innerHTML = `<div class="empty">Error: ${esc(e.message)}</div>`;
+  }
+}
+
+function loadAll() {
+  loadHealth();
+  loadAgents();
+  loadPolicies();
+  loadQuotas();
+  loadAudit();
+}
+
+loadAll();
+setInterval(loadAll, 15000);
+</script>
+</body>
+</html>

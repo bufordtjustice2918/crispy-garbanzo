@@ -87,9 +87,11 @@ outbound request is identity-checked, policy-evaluated, and audit-logged.
 ---
 
 ## Step 5 — Admin UI (basic)
-- ⬜ Single-page app (or server-rendered): agent list, policy list, recent decisions
-- ⬜ Served by `clawgress-admin-api` on `/ui/`
-- ⬜ E2E: `curl http://localhost:8080/ui/` returns 200
+- ✅ Single-page embedded HTML: agents, policies, quotas, health, recent audit decisions
+- ✅ Dark theme, auto-refresh every 15s, responsive grid layout
+- ✅ `go:embed` — no build toolchain, single binary serves everything
+- ✅ Served by `clawgress-admin-api` on `/ui/` (redirect from `/ui`)
+- ✅ E2E: `/ui/` returns 200, contains "Clawgress Admin", references API endpoints
 
 ---
 
