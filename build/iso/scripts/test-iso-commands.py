@@ -57,7 +57,7 @@ DEFAULT_SMOKE_COMMANDS = [
 
     # Installer present and executable
     "test -x /usr/local/sbin/clawgress-install.sh",
-    "/usr/local/sbin/clawgress-install.sh --help 2>&1 | grep -q usage",
+    "/usr/local/sbin/clawgress-install.sh --help 2>&1 | grep -qi usage",
 ]
 
 DEFAULT_SERVICE_CHECK_COMMANDS = DEFAULT_SMOKE_COMMANDS + [
