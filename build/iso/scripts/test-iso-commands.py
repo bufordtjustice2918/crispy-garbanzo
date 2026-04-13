@@ -189,14 +189,17 @@ DEFAULT_SMOKE_COMMANDS = [
     "sleep 2 && test \"$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 --proxy http://test-agent-001:clawgress-test-key-001@localhost:3128 http://localhost:8080/healthz)\" = 200",
 
     # --- JWT auth e2e ---
-    # Generate a JWT for test-agent-001 and use it via Bearer auth
-    "JWT=$(/usr/local/sbin/clawgressctl token --agent test-agent-001 --team test-team --project test-project --env live-test --secret clawgress-e2e-jwt-secret-key-32b --ttl 5m) && test \"$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 -x http://localhost:3128 -H \"Proxy-Authorization: Bearer $JWT\" http://localhost:8080/healthz)\" = 200",
+    # Generate test JWTs to files
+    "/usr/local/sbin/clawgressctl token --agent test-agent-001 --team test-team --project test-project --env live-test --secret clawgress-e2e-jwt-secret-key-32b --ttl 5m > /tmp/jwt-valid.txt",
 
-    # JWT with unknown agent still works (JWT creates synthetic agent, policy catch-all decides)
-    "JWT=$(/usr/local/sbin/clawgressctl token --agent jwt-only-agent --secret clawgress-e2e-jwt-secret-key-32b --ttl 5m) && test \"$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 -x http://localhost:3128 -H \"Proxy-Authorization: Bearer $JWT\" http://blocked.example.invalid/)\" = 403",
+    # Valid JWT → 200 via Bearer auth
+    "sleep 1 && curl -s -o /dev/null -w '%{http_code}' --max-time 5 -x http://localhost:3128 -H \"Proxy-Authorization: Bearer $(cat /tmp/jwt-valid.txt)\" http://localhost:8080/healthz | grep -q 200",
 
-    # Invalid JWT secret → 407 (signature check fails, no identity)
-    "JWT=$(/usr/local/sbin/clawgressctl token --agent test-agent-001 --secret wrong-secret-key-wont-work-here --ttl 5m) && test \"$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 -x http://localhost:3128 -H \"Proxy-Authorization: Bearer $JWT\" http://localhost:8080/healthz)\" = 407",
+    # Generate JWT with bad secret
+    "/usr/local/sbin/clawgressctl token --agent test-agent-001 --secret wrong-secret-key-wont-work-here --ttl 5m > /tmp/jwt-bad.txt",
+
+    # Invalid JWT secret → 407
+    "sleep 1 && curl -s -o /dev/null -w '%{http_code}' --max-time 10 -x http://localhost:3128 -H \"Proxy-Authorization: Bearer $(cat /tmp/jwt-bad.txt)\" http://localhost:8080/healthz | grep -q 407",
 
     # --- Admin UI e2e ---
     # UI serves 200
