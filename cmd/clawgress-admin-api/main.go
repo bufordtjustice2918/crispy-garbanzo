@@ -11,6 +11,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/bufordtjustice2918/crispy-garbanzo/internal/audit"
 	"github.com/bufordtjustice2918/crispy-garbanzo/internal/enforcer"
 	"github.com/bufordtjustice2918/crispy-garbanzo/internal/identity"
 	"github.com/bufordtjustice2918/crispy-garbanzo/internal/opmode"
@@ -24,6 +25,7 @@ func main() {
 	defaultOpsMode := getenv("CLAWGRESS_OPS_MODE", enforcer.OpsModeDryRun)
 	agentsFile := getenv("CLAWGRESS_AGENTS_FILE", "/etc/clawgress/agents.json")
 	policyFile := getenv("CLAWGRESS_POLICY_FILE", "/etc/clawgress/policy.json")
+	auditFile := getenv("CLAWGRESS_AUDIT_FILE", "/var/log/clawgress/audit.jsonl")
 
 	store, err := opmode.NewStore(stateDir)
 	if err != nil {
@@ -293,8 +295,41 @@ func main() {
 		}
 	})
 
-	log.Printf("clawgress-admin-api listening on %s (state dir: %s, agents: %s, policy: %s)",
-		listenAddr, stateDir, agentsFile, policyFile)
+	// -----------------------------------------------------------------------
+	// Audit query endpoint
+	// -----------------------------------------------------------------------
+
+	mux.HandleFunc("/v1/audit", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "method not allowed"})
+			return
+		}
+		q := r.URL.Query()
+		limit := 100
+		if v := q.Get("limit"); v != "" {
+			if n, err := strconv.Atoi(v); err == nil && n > 0 {
+				limit = n
+			}
+		}
+		f := audit.Filter{
+			AgentID:  q.Get("agent_id"),
+			Decision: q.Get("decision"),
+			Since:    q.Get("since"),
+			Limit:    limit,
+		}
+		events, err := audit.Query(auditFile, f)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			return
+		}
+		if events == nil {
+			events = []audit.Event{}
+		}
+		writeJSON(w, http.StatusOK, events)
+	})
+
+	log.Printf("clawgress-admin-api listening on %s (state dir: %s, agents: %s, policy: %s, audit: %s)",
+		listenAddr, stateDir, agentsFile, policyFile, auditFile)
 	if err := http.ListenAndServe(listenAddr, mux); err != nil {
 		log.Fatalf("http server failed: %v", err)
 	}

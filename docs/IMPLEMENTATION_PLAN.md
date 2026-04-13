@@ -66,9 +66,12 @@ outbound request is identity-checked, policy-evaluated, and audit-logged.
 ---
 
 ## Step 3 — Audit Query
-- ⬜ `GET /v1/audit`         — tail/filter audit log (by agent_id, decision, time range)
-- ⬜ `clawgressctl show audit [--agent <id>] [--limit N]`
-- ⬜ E2E: make proxy requests, query audit API, verify event fields
+- ✅ `internal/audit/query.go` — JSONL reader with Filter (agent_id, decision, since, limit)
+- ✅ `GET /v1/audit`         — tail/filter audit log (query params: agent_id, decision, since, limit)
+- ✅ `clawgressctl show audit [--agent <id>] [--decision <d>] [--since <ts>] [--limit N] [--json]`
+- ✅ `clawgressctl` binary baked into ISO (`/usr/local/sbin/clawgressctl`)
+- ✅ E2E: query audit API, filter by decision, filter by agent_id, limit, field validation
+- ✅ E2E: `clawgressctl show audit` table output, JSON output, agent filter
 
 ---
 

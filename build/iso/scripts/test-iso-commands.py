@@ -131,6 +131,37 @@ DEFAULT_SMOKE_COMMANDS = [
 
     # Hot-reload verify: deleted agent key is rejected (407) after SIGHUP
     "sleep 2 && test \"$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 --proxy http://e2e-crud-agent:e2e-crud-key@localhost:3128 http://localhost:8080/healthz)\" = 407",
+
+    # --- Audit Query API e2e ---
+    # Audit query endpoint returns 200 with events array
+    "curl -sf http://localhost:8080/v1/audit | jq -e 'type == \"array\"'",
+
+    # Audit query returns events (prior proxy requests generated them)
+    "curl -sf http://localhost:8080/v1/audit | jq -e 'length > 0'",
+
+    # Filter by decision=deny returns only deny events
+    "curl -sf 'http://localhost:8080/v1/audit?decision=deny' | jq -e 'all(.decision == \"deny\")'",
+
+    # Filter by decision=allow returns only allow events
+    "curl -sf 'http://localhost:8080/v1/audit?decision=allow' | jq -e 'all(.decision == \"allow\")'",
+
+    # Filter by agent_id returns only that agent's events
+    "curl -sf 'http://localhost:8080/v1/audit?agent_id=test-agent-001' | jq -e 'all(.agent_id == \"test-agent-001\")'",
+
+    # Limit parameter works
+    "curl -sf 'http://localhost:8080/v1/audit?limit=2' | jq -e 'length <= 2'",
+
+    # Events have all required fields
+    "curl -sf 'http://localhost:8080/v1/audit?limit=1' | jq -e '.[0] | .timestamp and .request_id and .decision and .policy_id'",
+
+    # clawgressctl show audit (table output, non-empty)
+    "clawgressctl show audit --limit 5 | grep -q DECISION",
+
+    # clawgressctl show audit --json returns valid JSON array
+    "clawgressctl show audit --json --limit 3 | jq -e 'type == \"array\"'",
+
+    # clawgressctl show audit --agent filter
+    "clawgressctl show audit --json --agent test-agent-001 | jq -e 'all(.agent_id == \"test-agent-001\")'",
 ]
 
 DEFAULT_SERVICE_CHECK_COMMANDS = DEFAULT_SMOKE_COMMANDS + [

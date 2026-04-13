@@ -54,9 +54,14 @@ jobs:
             -trimpath -ldflags="-s -w" \
             -o "${SBIN}/clawgress-admin-api" \
             ./cmd/clawgress-admin-api
-          chmod +x "${SBIN}/clawgress-gateway" "${SBIN}/clawgress-admin-api"
+          GOOS=linux GOARCH=amd64 go build \
+            -trimpath -ldflags="-s -w" \
+            -o "${SBIN}/clawgressctl" \
+            ./cmd/clawgressctl
+          chmod +x "${SBIN}/clawgress-gateway" "${SBIN}/clawgress-admin-api" "${SBIN}/clawgressctl"
           echo "Gateway binary: $(file ${SBIN}/clawgress-gateway)"
           echo "Admin API binary: $(file ${SBIN}/clawgress-admin-api)"
+          echo "CLI binary: $(file ${SBIN}/clawgressctl)"
 
       - name: Restore lb chroot cache
         id: lb-cache

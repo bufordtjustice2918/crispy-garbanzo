@@ -36,7 +36,12 @@ func main() {
 	case "set":
 		runSet(os.Args[2:])
 	case "show":
-		runShow(os.Args[2:])
+		// "show audit" is handled separately with its own flags.
+		if len(os.Args) >= 3 && os.Args[2] == "audit" {
+			runShowAudit(os.Args[3:])
+		} else {
+			runShow(os.Args[2:])
+		}
 	case "install":
 		runInstall(os.Args[2:])
 	default:
@@ -259,6 +264,81 @@ func showFromFile(file string, rest []string) error {
 	}
 	prettyPrint(map[string]any{"key": path, "value": v})
 	return nil
+}
+
+func runShowAudit(args []string) {
+	fs := flag.NewFlagSet("show audit", flag.ExitOnError)
+	apiURL := fs.String("url", "http://127.0.0.1:8080", "admin API base URL")
+	agentID := fs.String("agent", "", "filter by agent_id")
+	decision := fs.String("decision", "", "filter by decision (allow|deny)")
+	since := fs.String("since", "", "filter events after RFC3339 timestamp")
+	limit := fs.Int("limit", 50, "max events to return (most recent)")
+	jsonOut := fs.Bool("json", false, "output raw JSON array")
+	fs.Parse(args)
+
+	url := *apiURL + "/v1/audit?limit=" + strconv.Itoa(*limit)
+	if *agentID != "" {
+		url += "&agent_id=" + *agentID
+	}
+	if *decision != "" {
+		url += "&decision=" + *decision
+	}
+	if *since != "" {
+		url += "&since=" + *since
+	}
+
+	resp, err := http.Get(url)
+	if err != nil {
+		fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		fatalf("read response: %v", err)
+	}
+	if resp.StatusCode >= 400 {
+		fmt.Fprintf(os.Stderr, "error: HTTP %d: %s\n", resp.StatusCode, string(data))
+		os.Exit(1)
+	}
+
+	if *jsonOut {
+		var pretty bytes.Buffer
+		if err := json.Indent(&pretty, data, "", "  "); err != nil {
+			fmt.Println(string(data))
+		} else {
+			fmt.Println(pretty.String())
+		}
+		return
+	}
+
+	var events []map[string]any
+	if err := json.Unmarshal(data, &events); err != nil {
+		fatalf("parse response: %v", err)
+	}
+
+	if len(events) == 0 {
+		fmt.Println("no audit events")
+		return
+	}
+
+	// Table output.
+	fmt.Printf("%-24s %-18s %-8s %-7s %-28s %s\n",
+		"TIMESTAMP", "AGENT", "METHOD", "DECISION", "DESTINATION", "POLICY")
+	for _, e := range events {
+		ts, _ := e["timestamp"].(string)
+		if len(ts) > 23 {
+			ts = ts[:23]
+		}
+		agent, _ := e["agent_id"].(string)
+		method, _ := e["http_method"].(string)
+		dec, _ := e["decision"].(string)
+		dest, _ := e["destination"].(string)
+		pol, _ := e["policy_id"].(string)
+		fmt.Printf("%-24s %-18s %-8s %-7s %-28s %s\n",
+			ts, agent, method, dec, dest, pol)
+	}
+	fmt.Printf("\n%d events\n", len(events))
 }
 
 func runInstall(args []string) {
