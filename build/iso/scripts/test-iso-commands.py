@@ -154,14 +154,14 @@ DEFAULT_SMOKE_COMMANDS = [
     # Events have all required fields
     "curl -sf 'http://localhost:8080/v1/audit?limit=1' | jq -e '.[0] | .timestamp and .request_id and .decision and .policy_id'",
 
-    # clawgressctl show audit (table output, non-empty)
-    "clawgressctl show audit --limit 5 | grep -q DECISION",
+    # /usr/local/sbin/clawgressctl show audit (table output, non-empty)
+    "/usr/local/sbin/clawgressctl show audit --limit 5 | grep -q DECISION",
 
-    # clawgressctl show audit --json returns valid JSON array
-    "clawgressctl show audit --json --limit 3 | jq -e 'type == \"array\"'",
+    # /usr/local/sbin/clawgressctl show audit --json returns valid JSON array
+    "/usr/local/sbin/clawgressctl show audit --json --limit 3 | jq -e 'type == \"array\"'",
 
-    # clawgressctl show audit --agent filter
-    "clawgressctl show audit --json --agent test-agent-001 | jq -e 'all(.agent_id == \"test-agent-001\")'",
+    # /usr/local/sbin/clawgressctl show audit --agent filter
+    "/usr/local/sbin/clawgressctl show audit --json --agent test-agent-001 | jq -e 'all(.agent_id == \"test-agent-001\")'",
 
     # --- Quota / Rate Limiter e2e ---
     # No quotas initially — list returns empty array
