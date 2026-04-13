@@ -7,18 +7,18 @@
 - [x] Add Debian Bookworm + `nftables` baseline deployment artifacts.
 - [ ] Add identity validation middleware (JWT + API key) to admin API.
 - [ ] Add signed policy bundle generation and verification.
-- [ ] Add per-agent rate-limit enforcement service logic.
-- [ ] Add immutable audit sink abstraction (file + DB backend).
-- [ ] Add `set` and `show` command grammar with candidate config file support.
+- [x] Add per-agent rate-limit enforcement service logic.
+- [x] Add immutable audit sink abstraction (file + DB backend).
+- [x] Add `set` and `show` command grammar with candidate config file support.
 - [ ] Add `install` command plan/output for live-media to disk workflow.
 
 ## Sprint 1 (Weeks 1-3)
-- [ ] Service config schema + strict validation.
-- [ ] SQLite/PostgreSQL persistence layer for identity/policy/quota.
-- [ ] API endpoints for agent CRUD.
-- [ ] API endpoints for policy CRUD + publish workflow.
-- [ ] API endpoints for quota CRUD.
-- [ ] Unit test baseline for opmode and API handlers.
+- [x] Service config schema + strict validation.
+- [x] SQLite persistence layer for identity/policy/quota.
+- [x] API endpoints for agent CRUD.
+- [x] API endpoints for policy CRUD + publish workflow.
+- [x] API endpoints for quota CRUD.
+- [x] Unit test baseline for identity, policy, quota, audit, config, store.
 
 ## Sprint 2 (Weeks 4-6)
 - [ ] Gateway request path skeleton: identity -> policy -> quota -> decision.
