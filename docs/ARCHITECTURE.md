@@ -3,7 +3,7 @@
 ## 1. Purpose
 Clawgress is an agent-aware egress governance gateway. It enforces identity, policy, quotas, and outbound DLP for autonomous AI workloads.
 
-This draft maps the product spec into an implementable architecture with Ubuntu 24.04 as the base operating system for all gateway and control-plane nodes.
+This draft maps the product spec into an implementable architecture with Debian Bookworm (12) as the base operating system for all gateway and control-plane nodes.
 
 ## 2. Scope and Principles
 - Identity is mandatory for any outbound decision.
@@ -12,11 +12,12 @@ This draft maps the product spec into an implementable architecture with Ubuntu 
 - Control plane is authoritative for policy and identity metadata.
 - Fail mode (`fail-open` or `fail-closed`) is explicit and configurable per environment.
 
-## 3. Deployment Targets (Ubuntu 24.04)
-- Host OS: Ubuntu Server 24.04 LTS.
-- Runtime: systemd-managed services and/or containerized workloads on Ubuntu 24.04.
-- Networking stack: nftables/iptables compatibility, conntrack, policy routing.
-- Optional Kubernetes mode: Ubuntu 24.04 worker nodes with sidecar/egress-gateway deployment.
+## 3. Deployment Targets (Debian Bookworm)
+- Host OS: Debian 12 (Bookworm), x86_64.
+- Runtime: systemd-managed services and/or containerized workloads on Debian Bookworm.
+- Networking stack: nftables, conntrack, policy routing.
+- Appliance mode: bootable LiveCD ISO (live-build, iso-hybrid) with image-based disk installer.
+- Optional Kubernetes mode: Debian Bookworm worker nodes with sidecar/egress-gateway deployment.
 
 ## 4. High-Level Runtime Flow
 1. Agent emits outbound request with identity assertion (mTLS/JWT/API key).
@@ -112,7 +113,7 @@ Responsibilities:
 ## 7. Network Modes
 
 ### 7.1 Transparent Gateway
-- Ubuntu host routes workload subnet egress through Clawgress.
+- Debian host routes workload subnet egress through Clawgress.
 - NAT and policy routing at host edge.
 - Best for VM fleets and central egress points.
 
@@ -144,13 +145,17 @@ Responsibilities:
 - Quota backend degraded: configurable soft-fail vs hard-fail.
 - Audit sink unavailable: local write-ahead queue with bounded retention and alerts.
 
-## 11. Ubuntu 24.04 Baseline Build
+## 11. Debian Bookworm Baseline Build
 Minimum host profile for gateway nodes:
-- Ubuntu Server 24.04 LTS
+- Debian 12 (Bookworm) — packages from `deb.debian.org/debian`
 - systemd service units for gateway/control agents
 - nftables + conntrack tooling
 - journald + log shipper to central SIEM
 - chrony/ntp for deterministic timestamps
+
+Appliance delivery: bootable LiveCD ISO built with `live-build` in
+`debian:bookworm` container. Image-based disk installer (VyOS-style):
+immutable squashfs + persistent config partition.
 
 Hardening baseline:
 - Unattended security updates enabled.

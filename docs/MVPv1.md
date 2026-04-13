@@ -1,15 +1,16 @@
 # Clawgress MVP v1
 
 ## 1. Goal
-Ship a working Clawgress release that enforces identity-aware outbound egress policy for AI agents on an Ubuntu 24.04 LTS baseline.
+Ship a working Clawgress release that enforces identity-aware outbound egress policy for AI agents on a Debian Bookworm (12) baseline.
 
 Success means a team can deploy Clawgress, route agent egress through it, enforce policy and rate limits, and retrieve immutable decision logs.
 
-## 2. Ubuntu 24.04 Baseline
+## 2. Debian Bookworm Baseline
 
 ### 2.1 Supported OS
-- Ubuntu Server 24.04 LTS (x86_64) is the primary and required MVP host OS.
-- Kernel and package updates come from official Ubuntu 24.04 repositories.
+- Debian 12 (Bookworm), x86_64 is the primary and required MVP host OS.
+- Delivered as a bootable LiveCD ISO with image-based disk installer.
+- Kernel and package updates come from `deb.debian.org/debian`.
 
 ### 2.2 Host Requirements (per gateway node)
 - 4 vCPU minimum
@@ -77,7 +78,7 @@ Success means a team can deploy Clawgress, route agent egress through it, enforc
 - Preferred for MVP pilots.
 
 ### 4.2 Mode B (Secondary): Transparent Gateway
-- Ubuntu host acts as default egress gateway.
+- Debian host acts as default egress gateway.
 - Traffic is routed/NATed through Clawgress.
 - `nftables` is the required packet filter/NAT framework for this mode.
 - Used for VM subnet egress control.
@@ -147,7 +148,7 @@ MVPv1 includes a first-party CLI and API surface with explicit operational modes
 - `commit` atomically activates staged revision.
 - `install --target-disk <disk>` executes live-media to disk installation workflow.
 
-## 7. Ubuntu 24.04 System Layout
+## 7. Debian Bookworm System Layout
 
 ### 7.1 Directories
 - `/etc/clawgress/` for service configs
@@ -166,7 +167,7 @@ All services run as non-root systemd units:
 - `chrony.service` (or equivalent NTP unit) for synchronized control-plane time
 
 ### 7.3 Security Defaults
-- Ubuntu unattended security updates enabled.
+- Debian unattended security updates enabled.
 - AppArmor enforced for gateway and API services.
 - Inbound ports default-deny except management and proxy ports.
 - mTLS for internal service-to-service traffic.
@@ -245,7 +246,7 @@ All services run as non-root systemd units:
 
 ### Phase 1 (Weeks 1-3): Core Foundations
 - Repo/service scaffolding and CI.
-- Ubuntu 24.04 packaging and systemd templates.
+- Debian Bookworm packaging and systemd templates.
 - Identity schema and auth verification implementation.
 - CLI parser for `set`/`show` command families.
 
@@ -262,7 +263,7 @@ All services run as non-root systemd units:
 
 ### Phase 4 (Weeks 10-12): Hardening and Release
 - Load, failure, and recovery testing.
-- Security baseline validation on Ubuntu 24.04.
+- Security baseline validation on Debian Bookworm.
 - MVP release candidate and operator runbook.
 - Disk installer (`install`) validation from live mode to persistent system.
 
@@ -271,15 +272,15 @@ All services run as non-root systemd units:
 - Integration: full request path identity -> policy -> quota -> decision -> audit.
 - Performance: sustained load and latency budgets.
 - Failure: policy service outage, audit backend outage, identity backend timeout.
-- Upgrade: rolling restart of services on Ubuntu 24.04 without data loss.
+- Upgrade: rolling restart of services on Debian Bookworm without data loss.
 
 ## 13. Release Artifacts
 - Versioned binaries or container images for all services.
-- Ubuntu 24.04 install guide and operations runbook.
+- Debian Bookworm install guide and operations runbook.
 - LiveCD ISO with SquashFS root filesystem.
 - Default starter policy bundle.
 - Admin API reference.
 - Dashboard and log query examples.
 
 ## 14. MVP Exit Criteria
-MVPv1 is complete when all in-scope features run on Ubuntu 24.04, pass the acceptance criteria above, and complete at least one successful pilot deployment in explicit proxy mode.
+MVPv1 is complete when all in-scope features run on Debian Bookworm, pass the acceptance criteria above, and complete at least one successful pilot deployment in explicit proxy mode.

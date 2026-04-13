@@ -2,7 +2,7 @@
 
 This project maps operator-facing commands to an appliance-style `set` and `show` workflow for the egress firewall scope.
 
-The focus is command semantics and transactional behavior (`configure` -> `commit`) for Ubuntu-based appliance runtime.
+The focus is command semantics and transactional behavior (`configure` -> `commit`) for Debian Bookworm-based appliance runtime.
 
 ## Control Plane Runtime Baseline
 - Control plane and data-plane daemons run as `systemd` units.
