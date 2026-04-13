@@ -25,5 +25,8 @@ live-config
 live-config-systemd
 
 # Installer runtime dependencies (used by clawgress-install).
+# grub-*-bin provide grub-install for both EFI and BIOS targets.
 debootstrap
 gdisk
+grub-pc-bin
+grub-efi-amd64-bin
