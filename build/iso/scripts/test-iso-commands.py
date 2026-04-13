@@ -250,17 +250,17 @@ DEFAULT_SMOKE_COMMANDS = [
     "grep -cq '\\.' /tmp/jwt-valid.txt",
 
     # --- Audit event field depth ---
-    # Verify latency_ms is present and numeric
-    "sudo jq -e '.[0].latency_ms >= 0' /var/log/clawgress/audit.jsonl",
+    # Verify latency_ms is present and numeric (JSONL = one JSON per line)
+    "sudo head -1 /var/log/clawgress/audit.jsonl | jq -e '.latency_ms >= 0'",
 
     # Verify timestamp is RFC3339
-    "sudo jq -r '.[0].timestamp' /var/log/clawgress/audit.jsonl | grep -qE '^[0-9]{4}-[0-9]{2}-[0-9]{2}T'",
+    "sudo head -1 /var/log/clawgress/audit.jsonl | jq -r '.timestamp' | grep -qE '^[0-9]{4}-[0-9]{2}-[0-9]{2}T'",
 
     # Verify http_method field
-    "sudo jq -e '.[0].http_method' /var/log/clawgress/audit.jsonl | grep -qv null",
+    "sudo head -1 /var/log/clawgress/audit.jsonl | jq -e '.http_method' | grep -qv null",
 
     # Verify destination field
-    "sudo jq -e '.[0].destination' /var/log/clawgress/audit.jsonl | grep -qv null",
+    "sudo head -1 /var/log/clawgress/audit.jsonl | jq -e '.destination' | grep -qv null",
 
     # --- Policy wildcard matching (via proxy) ---
     # Create wildcard policy: *.localhost should match sub.localhost
