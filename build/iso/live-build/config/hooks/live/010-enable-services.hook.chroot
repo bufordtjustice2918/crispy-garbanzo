@@ -4,7 +4,10 @@ set -eu
 # Ensure core daemons are enabled for live environment boot.
 systemctl enable nftables || true
 systemctl enable haproxy || true
-systemctl enable bind9 || true
+# bind9.service is a linked unit — systemctl enable refuses it; symlink directly.
+mkdir -p /etc/systemd/system/multi-user.target.wants
+ln -sf /lib/systemd/system/bind9.service \
+  /etc/systemd/system/multi-user.target.wants/bind9.service || true
 systemctl enable clawgress-live-selftest.service || true
 
 # Ensure self-test starts even if systemctl enable is skipped in chroot context.

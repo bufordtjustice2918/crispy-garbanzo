@@ -15,6 +15,7 @@ curl
 jq
 ca-certificates
 openssh-server
+sudo
 
 # Live boot — Debian live-boot replaces Ubuntu casper.
 # live-boot handles live session mount (squashfs/overlayfs).

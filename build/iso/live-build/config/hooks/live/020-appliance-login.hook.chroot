@@ -11,6 +11,7 @@ echo 'clawgress:clawgress' | chpasswd
 
 # Passwordless sudo so the e2e test suite can run privileged commands
 # without an interactive password prompt breaking pexpect.
+mkdir -p /etc/sudoers.d
 echo 'clawgress ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/clawgress
 chmod 0440 /etc/sudoers.d/clawgress
 
