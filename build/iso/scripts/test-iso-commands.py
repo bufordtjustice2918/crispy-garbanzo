@@ -373,6 +373,16 @@ DEFAULT_SMOKE_COMMANDS = [
     # clawgress-install.sh exists and is executable
     "test -x /usr/local/sbin/clawgress-install.sh",
 
+    # --- Prometheus metrics ---
+    # /metrics endpoint serves Prometheus format
+    "curl -sf http://localhost:8080/metrics | grep -q 'clawgress_gateway_requests_total'",
+
+    # Metrics contain request counters after proxy traffic
+    "curl -sf http://localhost:8080/metrics | grep -q 'clawgress_audit_events_total'",
+
+    # Metrics contain Go runtime stats
+    "curl -sf http://localhost:8080/metrics | grep -q 'go_goroutines'",
+
     # --- Appliance shell integration ---
     # MOTD exists
     "test -s /etc/motd",

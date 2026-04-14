@@ -13,6 +13,8 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+
 	"github.com/bufordtjustice2918/crispy-garbanzo/internal/audit"
 	cladns "github.com/bufordtjustice2918/crispy-garbanzo/internal/dns"
 	"github.com/bufordtjustice2918/crispy-garbanzo/internal/enforcer"
@@ -59,6 +61,9 @@ func main() {
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
+
+	// Prometheus metrics endpoint.
+	mux.Handle("/metrics", promhttp.Handler())
 
 	// -----------------------------------------------------------------------
 	// Opmode endpoints (existing)

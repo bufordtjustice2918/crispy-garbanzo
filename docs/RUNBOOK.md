@@ -133,7 +133,107 @@ CLAWGRESS_TLS_KEY=/etc/clawgress/tls/server.key
 CLAWGRESS_TLS_CA=/etc/clawgress/tls/ca.crt
 ```
 
-## 11. Troubleshooting
+## 11. Observability (Prometheus / Grafana / Loki)
+
+### Prometheus Metrics
+
+Clawgress exposes Prometheus metrics at `GET /metrics` on the admin API (`:8080`).
+
+```yaml
+# prometheus.yml scrape config
+scrape_configs:
+  - job_name: clawgress
+    static_configs:
+      - targets: ['clawgress-ip:8080']
+    scrape_interval: 15s
+```
+
+**Available metrics:**
+
+| Metric | Type | Labels | Description |
+|--------|------|--------|-------------|
+| `clawgress_gateway_requests_total` | counter | agent_id, decision, policy_id | Total proxy requests |
+| `clawgress_gateway_request_duration_seconds` | histogram | agent_id, decision | Request latency (p50/p95/p99) |
+| `clawgress_gateway_bytes_out_total` | counter | agent_id | Bytes forwarded outbound |
+| `clawgress_gateway_deny_total` | counter | reason | Denied requests by reason |
+| `clawgress_quota_utilization_ratio` | gauge | agent_id, limit_type | Quota usage (0-1) |
+| `clawgress_identity_active_agents` | gauge | — | Registered agent count |
+| `clawgress_policy_rules_total` | gauge | — | Loaded policy rule count |
+| `clawgress_audit_events_total` | counter | — | Audit events written |
+
+### Grafana Dashboards
+
+Useful PromQL queries:
+
+```promql
+# Request rate by agent (last 5 min)
+rate(clawgress_gateway_requests_total[5m])
+
+# Deny rate
+rate(clawgress_gateway_deny_total[5m])
+
+# p95 latency
+histogram_quantile(0.95, rate(clawgress_gateway_request_duration_seconds_bucket[5m]))
+
+# Top agents by traffic
+topk(10, sum by(agent_id) (rate(clawgress_gateway_requests_total[5m])))
+```
+
+### Log Shipping (Loki / Elasticsearch)
+
+The audit log at `/var/log/clawgress/audit.jsonl` is structured JSONL.
+
+**Promtail → Loki:**
+```yaml
+# promtail config
+scrape_configs:
+  - job_name: clawgress-audit
+    static_configs:
+      - targets: [localhost]
+        labels:
+          job: clawgress-audit
+          __path__: /var/log/clawgress/audit.jsonl
+    pipeline_stages:
+      - json:
+          expressions:
+            agent_id: agent_id
+            decision: decision
+            destination: destination
+      - labels:
+          agent_id:
+          decision:
+```
+
+**Filebeat → Elasticsearch:**
+```yaml
+filebeat.inputs:
+  - type: log
+    paths: [/var/log/clawgress/audit.jsonl]
+    json.keys_under_root: true
+    json.add_error_key: true
+```
+
+### Alerting
+
+Example Prometheus alerting rules:
+
+```yaml
+groups:
+  - name: clawgress
+    rules:
+      - alert: HighDenyRate
+        expr: rate(clawgress_gateway_deny_total[5m]) > 10
+        for: 2m
+        annotations:
+          summary: "High deny rate on Clawgress gateway"
+      - alert: GatewayDown
+        expr: up{job="clawgress"} == 0
+        for: 1m
+        annotations:
+          summary: "Clawgress admin API unreachable"
+```
+
+## 12. Troubleshooting
 
 | Symptom | Check |
 |---------|-------|

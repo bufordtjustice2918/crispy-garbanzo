@@ -28,6 +28,7 @@ import (
 
 	"github.com/bufordtjustice2918/crispy-garbanzo/internal/audit"
 	"github.com/bufordtjustice2918/crispy-garbanzo/internal/identity"
+	cgmetrics "github.com/bufordtjustice2918/crispy-garbanzo/internal/metrics"
 	"github.com/bufordtjustice2918/crispy-garbanzo/internal/policy"
 	"github.com/bufordtjustice2918/crispy-garbanzo/internal/quota"
 )
@@ -315,6 +316,16 @@ func (h *proxyHandler) handleHTTP(w http.ResponseWriter, r *http.Request,
 func (h *proxyHandler) writeAudit(e audit.Event) {
 	if err := h.alog.Write(e); err != nil {
 		log.Printf("audit write error: %v", err)
+	}
+	// Record Prometheus metrics.
+	cgmetrics.RequestsTotal.WithLabelValues(e.AgentID, e.Decision, e.PolicyID).Inc()
+	cgmetrics.RequestDuration.WithLabelValues(e.AgentID, e.Decision).Observe(float64(e.LatencyMs) / 1000.0)
+	cgmetrics.AuditEventsTotal.Inc()
+	if e.BytesOut > 0 {
+		cgmetrics.BytesOut.WithLabelValues(e.AgentID).Add(float64(e.BytesOut))
+	}
+	if e.Decision == "deny" {
+		cgmetrics.DenyTotal.WithLabelValues(e.PolicyID).Inc()
 	}
 }
 
