@@ -10,14 +10,20 @@
 
   Debian Bookworm | Clawgress MVPv1
 
-  Commands:
+  Operational mode:
     show agents          — list registered agents
     show audit           — view recent decisions
     show policies        — list policy rules
-    show quotas          — list rate limits
+    show health          — system status
     configure            — enter configuration mode
-    commit               — apply staged changes
     install              — install to disk
+
+  Configuration mode (inside configure):
+    set <path> <value>   — stage a change
+    show                 — view candidate config
+    commit               — apply changes
+    discard              — discard candidate
+    exit                 — return to operational mode
 
   Admin UI: http://localhost:8080/ui/
   Proxy:    localhost:3128

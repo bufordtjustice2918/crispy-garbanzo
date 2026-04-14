@@ -148,22 +148,30 @@ show() {
 
 configure() {
     echo -e "${_C_BCYAN}Entering configuration mode${_C_RESET}"
+    echo -e "${_C_DIM}Use: set <path> <value>, show, commit, discard, exit${_C_RESET}"
+    echo ""
     /usr/local/sbin/clawgressctl configure "$@"
+    echo -e "${_C_DIM}Exited configuration mode${_C_RESET}"
 }
 
 commit() {
-    echo -e "  ${_C_CYAN}⠋${_C_RESET} Committing configuration..." >&2
-    local output
-    output=$(/usr/local/sbin/clawgressctl commit "$@" 2>&1)
-    local rc=$?
-    if [ $rc -eq 0 ]; then
-        echo -e "\r  $(_clawgress_badge ok "COMMITTED") ${_C_GREEN}Configuration applied successfully${_C_RESET}"
-        echo "$output"
+    echo -e "  ${_C_RED}commit${_C_RESET} can only be run from configure mode."
+    echo -e "  Run ${_C_BOLD}configure${_C_RESET} first, then ${_C_BOLD}commit${_C_RESET} inside it."
+}
+
+set() {
+    if [ "$1" = "-e" ] || [ "$1" = "-x" ] || [ "$1" = "+e" ] || [ "$1" = "+x" ] || [ "$1" = "-o" ] || [ "$1" = "+o" ] || [ "$1" = "--" ]; then
+        # Pass through bash builtins: set -e, set -x, set -o, etc.
+        builtin set "$@"
     else
-        echo -e "\r  $(_clawgress_badge fail "FAILED") ${_C_RED}Commit failed${_C_RESET}"
-        echo "$output"
+        echo -e "  ${_C_RED}set${_C_RESET} can only be run from configure mode."
+        echo -e "  Run ${_C_BOLD}configure${_C_RESET} first, then ${_C_BOLD}set <path> <value>${_C_RESET} inside it."
     fi
-    return $rc
+}
+
+discard() {
+    echo -e "  ${_C_RED}discard${_C_RESET} can only be run from configure mode."
+    echo -e "  Run ${_C_BOLD}configure${_C_RESET} first."
 }
 
 install() {
@@ -176,4 +184,4 @@ if [ "$(whoami)" = "clawgress" ]; then
 fi
 
 # Export functions so they're available in subshells.
-export -f show configure commit install _clawgress_spinner _clawgress_badge
+export -f show configure commit set discard install _clawgress_spinner _clawgress_badge
