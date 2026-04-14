@@ -28,6 +28,21 @@ Every feature must include **three tiers of testing** before it ships:
 - Acceptance tests are prefixed with `ACCEPT-N:` in comments
 - Each acceptance test documents what behavioral property it validates
 
+### Test Maintenance
+- When adding a feature: add unit + smoke + acceptance tests in the same commit
+- When removing a feature: remove its tests in the same commit
+- When modifying a feature: update all three test tiers to match new behavior
+- The test suite is extensive — keep it in sync with the codebase, don't let tests go stale
+- Run `go test ./... -count=1` locally before pushing to catch regressions early
+
+### Advanced Testing
+- **Fuzz tests** (`go test -fuzz`): security-critical parsers (JWT, policy eval, auth extraction)
+- **Adversarial tests**: bypass attempts (encoded domains, null bytes, header injection)
+- **Load tests**: concurrent connection benchmarks with `-race` flag
+- **Chaos tests**: service death, disk full, corruption recovery
+- **API contract tests**: JSON schema validation, backward compatibility
+- **Security scanning**: `govulncheck` + `gosec` in CI
+
 ## CI Pipeline
 
 - `e2e.yml`: Go build + unit tests + command conformance

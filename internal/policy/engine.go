@@ -161,7 +161,7 @@ func (e *Engine) Evaluate(agentID, destHost string) Decision {
 // path, and identity conditions. Empty context fields match any rule field.
 // Rules are evaluated in order; first match wins. Default action is deny.
 func (e *Engine) EvaluateRich(ctx RequestContext) Decision {
-	host := stripPort(ctx.Destination)
+	host := sanitizeHost(stripPort(ctx.Destination))
 
 	e.mu.RLock()
 	rules := e.rules
@@ -253,6 +253,7 @@ func matchConditions(conds map[string]string, ctx RequestContext) bool {
 //	"*.example.com" — matches example.com and any subdomain
 //	"example.com"  — exact match only
 func matchDomain(host, pattern string) bool {
+	pattern = strings.ToLower(pattern)
 	if pattern == "*" {
 		return true
 	}
@@ -261,6 +262,22 @@ func matchDomain(host, pattern string) bool {
 		return host == pattern[2:] || strings.HasSuffix(host, suffix)
 	}
 	return host == pattern
+}
+
+// sanitizeHost removes null bytes, trailing dots, leading/trailing whitespace,
+// and lowercases the hostname. This prevents bypass attacks via encoding tricks.
+func sanitizeHost(host string) string {
+	// Truncate at first null byte (prevent null-byte injection).
+	if idx := strings.IndexByte(host, 0); idx >= 0 {
+		host = host[:idx]
+	}
+	// Strip trailing dot (DNS canonical form).
+	host = strings.TrimRight(host, ".")
+	// Trim whitespace.
+	host = strings.TrimSpace(host)
+	// Lowercase for case-insensitive matching.
+	host = strings.ToLower(host)
+	return host
 }
 
 func stripPort(hostport string) string {
