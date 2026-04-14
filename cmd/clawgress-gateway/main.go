@@ -175,8 +175,20 @@ func (h *proxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		log.Printf("quota alert: agent=%s %s", ag.AgentID, qd.Reason)
 	}
 
-	// --- Policy check ---
-	dec := h.eng.Evaluate(ag.AgentID, dest)
+	// --- Policy check (rich: method + path + conditions) ---
+	reqPath := ""
+	if r.URL != nil {
+		reqPath = r.URL.Path
+	}
+	dec := h.eng.EvaluateRich(policy.RequestContext{
+		AgentID:     ag.AgentID,
+		Destination: dest,
+		Method:      r.Method,
+		Path:        reqPath,
+		Environment: ag.Environment,
+		TeamID:      ag.TeamID,
+		ProjectID:   ag.ProjectID,
+	})
 	if dec.Action != "allow" {
 		h.writeAudit(audit.Event{
 			RequestID:   reqID,

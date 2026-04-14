@@ -1,0 +1,8 @@
+// Clawgress RPZ zone — managed by admin API
+// POST /v1/rpz/generate writes /etc/bind/db.rpz.clawgress and reloads
+
+zone "rpz.clawgress.local" {
+    type master;
+    file "/etc/bind/db.rpz.clawgress";
+    allow-query { any; };
+};

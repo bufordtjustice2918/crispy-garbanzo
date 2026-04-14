@@ -1,0 +1,10 @@
+; Clawgress RPZ zone — seed (empty, managed by admin API)
+$TTL 60
+@ IN SOA rpz.clawgress.local. admin.clawgress.local. (
+    1          ; serial
+    3600       ; refresh
+    600        ; retry
+    86400      ; expire
+    60         ; minimum TTL
+)
+@ IN NS rpz.clawgress.local.
