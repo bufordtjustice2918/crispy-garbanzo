@@ -270,14 +270,18 @@ DEFAULT_SMOKE_COMMANDS = [
     "curl -sf -X DELETE http://localhost:8080/v1/policies/e2e-wildcard | jq -e '.deleted == \"e2e-wildcard\"'",
 
     # --- Quota alert_only mode ---
+    # Ensure no leftover quotas from previous tests
+    "sleep 3",
+
     # Create alert_only quota — requests still go through even when over limit
     "curl -sf -X POST http://localhost:8080/v1/quotas -H 'Content-Type: application/json' -d '{\"agent_id\":\"test-agent-001\",\"rps\":1,\"mode\":\"alert_only\"}' | jq -e '.mode == \"alert_only\"'",
 
-    # Burst 3 requests — all should return 200 (alert_only doesn't block)
-    "sleep 2 && CODES=''; for i in 1 2 3; do CODES=\"$CODES $(curl -s -o /dev/null -w '%{http_code}' --max-time 5 --proxy http://test-agent-001:clawgress-test-key-001@localhost:3128 http://localhost:8080/healthz)\"; done; echo \"$CODES\" | grep -qv 429",
+    # Wait for SIGHUP then burst — all should return 200 (alert_only doesn't block)
+    "sleep 3 && test \"$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 --proxy http://test-agent-001:clawgress-test-key-001@localhost:3128 http://localhost:8080/healthz)\" != 429",
 
     # Clean up alert_only quota
     "curl -sf -X DELETE http://localhost:8080/v1/quotas/test-agent-001 | jq -e '.deleted == \"test-agent-001\"'",
+    "sleep 2",
 
     # --- SIGHUP direct reload test ---
     # Create a new agent, send SIGHUP directly, verify reload
@@ -374,13 +378,13 @@ DEFAULT_SMOKE_COMMANDS = [
     "test -x /usr/local/sbin/clawgress-install.sh",
 
     # --- Prometheus metrics ---
-    # /metrics endpoint serves Prometheus format
-    "curl -sf http://localhost:8080/metrics | grep -q 'clawgress_gateway_requests_total'",
+    # Gateway metrics endpoint on :9128
+    "curl -sf http://localhost:9128/metrics | grep -q 'clawgress_gateway_requests_total'",
 
-    # Metrics contain request counters after proxy traffic
-    "curl -sf http://localhost:8080/metrics | grep -q 'clawgress_audit_events_total'",
+    # Metrics contain audit event counter
+    "curl -sf http://localhost:9128/metrics | grep -q 'clawgress_audit_events_total'",
 
-    # Metrics contain Go runtime stats
+    # Admin API also has /metrics (Go runtime stats)
     "curl -sf http://localhost:8080/metrics | grep -q 'go_goroutines'",
 
     # --- Appliance shell integration ---

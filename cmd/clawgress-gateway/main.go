@@ -26,6 +26,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+
 	"github.com/bufordtjustice2918/crispy-garbanzo/internal/audit"
 	"github.com/bufordtjustice2918/crispy-garbanzo/internal/identity"
 	cgmetrics "github.com/bufordtjustice2918/crispy-garbanzo/internal/metrics"
@@ -89,6 +91,17 @@ func main() {
 		ReadTimeout:  60 * time.Second,
 		WriteTimeout: 0, // tunnels must not time out writes
 	}
+
+	// Metrics server on separate port for Prometheus scraping.
+	metricsAddr := getenv("CLAWGRESS_METRICS_LISTEN", ":9128")
+	go func() {
+		metricsMux := http.NewServeMux()
+		metricsMux.Handle("/metrics", promhttp.Handler())
+		log.Printf("clawgress-gateway metrics on %s", metricsAddr)
+		if err := http.ListenAndServe(metricsAddr, metricsMux); err != nil {
+			log.Printf("metrics server: %v", err)
+		}
+	}()
 
 	log.Printf("clawgress-gateway listening on %s (agents=%s policy=%s quotas=%s audit=%s)",
 		listenAddr, agentsFile, policyFile, quotaFile, auditFile)
