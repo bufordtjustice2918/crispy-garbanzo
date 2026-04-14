@@ -373,6 +373,23 @@ DEFAULT_SMOKE_COMMANDS = [
     # clawgress-install.sh exists and is executable
     "test -x /usr/local/sbin/clawgress-install.sh",
 
+    # --- Appliance shell integration ---
+    # MOTD exists
+    "test -s /etc/motd",
+    "grep -q Clawgress /etc/motd",
+
+    # Shell wrapper loaded (profile.d)
+    "test -f /etc/profile.d/clawgress-shell.sh",
+
+    # Tab completion installed
+    "test -f /usr/share/bash-completion/completions/clawgressctl",
+
+    # show function works (sourced from profile.d)
+    "source /etc/profile.d/clawgress-shell.sh && show health | jq -e '.status == \"ok\"'",
+
+    # show version works
+    "source /etc/profile.d/clawgress-shell.sh && show version | grep -q Clawgress",
+
     # ===================================================================
     # ACCEPTANCE TESTS — real behavioral validation of every feature
     # Each test proves the feature works with actual traffic, not just APIs

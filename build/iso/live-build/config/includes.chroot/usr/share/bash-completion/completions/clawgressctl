@@ -1,0 +1,48 @@
+#!/bin/bash
+# Bash completion for clawgressctl and appliance shell commands.
+
+_clawgressctl_completions() {
+    local cur prev
+    cur="${COMP_WORDS[COMP_CWORD]}"
+    prev="${COMP_WORDS[COMP_CWORD-1]}"
+
+    case "${COMP_WORDS[0]}" in
+        clawgressctl)
+            case "$COMP_CWORD" in
+                1)
+                    COMPREPLY=($(compgen -W "configure commit state set show install token" -- "$cur"))
+                    ;;
+                2)
+                    case "$prev" in
+                        show)
+                            COMPREPLY=($(compgen -W "audit agents policies quotas conflicts config rpz nft health version commands configuration" -- "$cur"))
+                            ;;
+                        install)
+                            COMPREPLY=($(compgen -W "--target-disk --hostname --yes --reboot" -- "$cur"))
+                            ;;
+                        token)
+                            COMPREPLY=($(compgen -W "--agent --secret --team --project --env --ttl" -- "$cur"))
+                            ;;
+                        configure|commit|state)
+                            COMPREPLY=($(compgen -W "--url --actor" -- "$cur"))
+                            ;;
+                    esac
+                    ;;
+            esac
+            ;;
+    esac
+}
+
+_show_completions() {
+    local cur
+    cur="${COMP_WORDS[COMP_CWORD]}"
+    if [ "$COMP_CWORD" -eq 1 ]; then
+        COMPREPLY=($(compgen -W "agents policies quotas audit conflicts config configuration rpz nft health version" -- "$cur"))
+    elif [ "${COMP_WORDS[1]}" = "audit" ]; then
+        COMPREPLY=($(compgen -W "--agent --decision --since --limit --json" -- "$cur"))
+    fi
+}
+
+complete -F _clawgressctl_completions clawgressctl
+complete -F _show_completions show
+complete -W "configure commit state set show install token" clawgressctl
