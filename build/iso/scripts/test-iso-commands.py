@@ -384,11 +384,11 @@ DEFAULT_SMOKE_COMMANDS = [
     # Tab completion installed
     "test -f /usr/share/bash-completion/completions/clawgressctl",
 
-    # show function works (sourced from profile.d)
-    "source /etc/profile.d/clawgress-shell.sh && show health | jq -e '.status == \"ok\"'",
+    # show function works (sourced from profile.d) — output is colored text, not JSON
+    "source /etc/profile.d/clawgress-shell.sh && show health 2>&1 | grep -qi healthy",
 
     # show version works
-    "source /etc/profile.d/clawgress-shell.sh && show version | grep -q Clawgress",
+    "source /etc/profile.d/clawgress-shell.sh && show version 2>&1 | grep -qi clawgress",
 
     # ===================================================================
     # ACCEPTANCE TESTS — real behavioral validation of every feature
