@@ -10,11 +10,26 @@ import (
 )
 
 // Rule defines a policy entry. Rules are evaluated in slice order; first match wins.
+// All match fields are optional — empty/nil means "match any".
 type Rule struct {
-	PolicyID string   `json:"policy_id"`
-	AgentID  string   `json:"agent_id"` // "*" matches any agent
-	Domains  []string `json:"domains"`  // patterns; see matchDomain
-	Action   string   `json:"action"`   // "allow" | "deny"
+	PolicyID     string            `json:"policy_id"`
+	AgentID      string            `json:"agent_id"`                // "*" or empty matches any agent
+	Domains      []string          `json:"domains"`                 // domain patterns; see matchDomain
+	Methods      []string          `json:"methods,omitempty"`       // HTTP methods (GET, CONNECT, etc); empty = any
+	PathPrefixes []string          `json:"path_prefixes,omitempty"` // path prefix match; empty = any
+	Conditions   map[string]string `json:"conditions,omitempty"`    // key-value conditions (e.g. "environment":"prod")
+	Action       string            `json:"action"`                  // "allow" | "deny"
+}
+
+// RequestContext carries per-request metadata for rich policy evaluation.
+type RequestContext struct {
+	AgentID     string
+	Destination string // host or host:port
+	Method      string // HTTP method
+	Path        string // request path (for plain HTTP)
+	Environment string // from identity
+	TeamID      string // from identity
+	ProjectID   string // from identity
 }
 
 // Decision is the result of evaluating a single request.
@@ -134,27 +149,44 @@ func (e *Engine) Save() error {
 }
 
 // Evaluate returns a Decision for the given (agentID, destHost) pair.
-// destHost may include a port (e.g. "example.com:443"); the port is stripped before matching.
-// If no rule matches the default action is deny.
+// This is the simple API — for method/path/condition matching, use EvaluateRich.
 func (e *Engine) Evaluate(agentID, destHost string) Decision {
-	host := stripPort(destHost)
+	return e.EvaluateRich(RequestContext{
+		AgentID:     agentID,
+		Destination: destHost,
+	})
+}
+
+// EvaluateRich returns a Decision using full request context including method,
+// path, and identity conditions. Empty context fields match any rule field.
+// Rules are evaluated in order; first match wins. Default action is deny.
+func (e *Engine) EvaluateRich(ctx RequestContext) Decision {
+	host := stripPort(ctx.Destination)
 
 	e.mu.RLock()
 	rules := e.rules
 	e.mu.RUnlock()
 
 	for _, r := range rules {
-		if r.AgentID != "*" && r.AgentID != agentID {
+		if r.AgentID != "*" && r.AgentID != "" && r.AgentID != ctx.AgentID {
 			continue
 		}
-		for _, d := range r.Domains {
-			if matchDomain(host, d) {
-				return Decision{
-					Action:   r.Action,
-					PolicyID: r.PolicyID,
-					Reason:   "matched rule " + r.PolicyID,
-				}
-			}
+		if !matchDomainList(host, r.Domains) {
+			continue
+		}
+		if len(r.Methods) > 0 && ctx.Method != "" && !containsIgnoreCase(r.Methods, ctx.Method) {
+			continue
+		}
+		if len(r.PathPrefixes) > 0 && ctx.Path != "" && !matchAnyPrefix(ctx.Path, r.PathPrefixes) {
+			continue
+		}
+		if len(r.Conditions) > 0 && !matchConditions(r.Conditions, ctx) {
+			continue
+		}
+		return Decision{
+			Action:   r.Action,
+			PolicyID: r.PolicyID,
+			Reason:   "matched rule " + r.PolicyID,
 		}
 	}
 	return Decision{
@@ -162,6 +194,57 @@ func (e *Engine) Evaluate(agentID, destHost string) Decision {
 		PolicyID: "default-deny",
 		Reason:   "no matching allow rule",
 	}
+}
+
+func matchDomainList(host string, domains []string) bool {
+	if len(domains) == 0 {
+		return true
+	}
+	for _, d := range domains {
+		if matchDomain(host, d) {
+			return true
+		}
+	}
+	return false
+}
+
+func containsIgnoreCase(list []string, val string) bool {
+	val = strings.ToUpper(val)
+	for _, s := range list {
+		if strings.ToUpper(s) == val {
+			return true
+		}
+	}
+	return false
+}
+
+func matchAnyPrefix(path string, prefixes []string) bool {
+	for _, p := range prefixes {
+		if strings.HasPrefix(path, p) {
+			return true
+		}
+	}
+	return false
+}
+
+func matchConditions(conds map[string]string, ctx RequestContext) bool {
+	for k, v := range conds {
+		switch k {
+		case "environment":
+			if ctx.Environment != "" && ctx.Environment != v {
+				return false
+			}
+		case "team_id":
+			if ctx.TeamID != "" && ctx.TeamID != v {
+				return false
+			}
+		case "project_id":
+			if ctx.ProjectID != "" && ctx.ProjectID != v {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 // matchDomain reports whether host matches a domain pattern.

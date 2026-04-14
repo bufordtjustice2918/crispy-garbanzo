@@ -14,6 +14,7 @@ import (
 	"syscall"
 
 	"github.com/bufordtjustice2918/crispy-garbanzo/internal/audit"
+	cladns "github.com/bufordtjustice2918/crispy-garbanzo/internal/dns"
 	"github.com/bufordtjustice2918/crispy-garbanzo/internal/enforcer"
 	"github.com/bufordtjustice2918/crispy-garbanzo/internal/identity"
 	"github.com/bufordtjustice2918/crispy-garbanzo/internal/opmode"
@@ -487,6 +488,56 @@ func main() {
 		nftOut := enforcer.RenderTransparentNft(cfg)
 		w.Header().Set("Content-Type", "text/plain")
 		w.Write([]byte(nftOut))
+	})
+
+	// POST /v1/rpz/generate — generate RPZ zone from deny rules and optionally reload bind9
+	mux.HandleFunc("/v1/rpz/generate", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "method not allowed"})
+			return
+		}
+		rpzPath := getenv("CLAWGRESS_RPZ_ZONE_PATH", "/etc/bind/db.rpz.clawgress")
+		rpzZone := getenv("CLAWGRESS_RPZ_ZONE_NAME", "rpz.clawgress.local")
+
+		result, err := cladns.WriteRPZFile(rpzPath, eng.Rules(), cladns.RPZConfig{
+			ZoneName: rpzZone,
+		})
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			return
+		}
+
+		// Reload bind9 if running.
+		if out, err := exec.Command("rndc", "reload").CombinedOutput(); err != nil {
+			result.GeneratedAt += " (rndc reload failed: " + strings.TrimSpace(string(out)) + ")"
+		}
+
+		writeJSON(w, http.StatusOK, result)
+	})
+
+	// GET /v1/rpz/preview — preview RPZ zone content without writing
+	mux.HandleFunc("/v1/rpz/preview", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "method not allowed"})
+			return
+		}
+		rpzZone := getenv("CLAWGRESS_RPZ_ZONE_NAME", "rpz.clawgress.local")
+		content := cladns.GenerateRPZ(eng.Rules(), cladns.RPZConfig{ZoneName: rpzZone})
+		w.Header().Set("Content-Type", "text/plain")
+		w.Write([]byte(content))
+	})
+
+	// GET /v1/rpz/named-conf — preview named.conf snippet for RPZ
+	mux.HandleFunc("/v1/rpz/named-conf", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "method not allowed"})
+			return
+		}
+		rpzZone := getenv("CLAWGRESS_RPZ_ZONE_NAME", "rpz.clawgress.local")
+		rpzPath := getenv("CLAWGRESS_RPZ_ZONE_PATH", "/etc/bind/db.rpz.clawgress")
+		content := cladns.GenerateNamedConf(rpzZone, rpzPath)
+		w.Header().Set("Content-Type", "text/plain")
+		w.Write([]byte(content))
 	})
 
 	// GET /v1/config/validate — validate current running config

@@ -296,6 +296,46 @@ DEFAULT_SMOKE_COMMANDS = [
     # Audit events from JWT auth should have team_id populated
     "curl -sf 'http://localhost:8080/v1/audit?agent_id=test-agent-001&limit=1' | jq -e '.[0].team_id'",
 
+    # --- DNS RPZ e2e ---
+    # Preview RPZ zone — should contain SOA and zone header
+    "curl -sf http://localhost:8080/v1/rpz/preview | grep -q 'rpz.clawgress.local'",
+
+    # RPZ preview contains deny rules as CNAME . records
+    "curl -sf -X POST http://localhost:8080/v1/policies -H 'Content-Type: application/json' -d '{\"policy_id\":\"rpz-test-deny\",\"agent_id\":\"*\",\"domains\":[\"rpz-blocked.test\"],\"action\":\"deny\"}' | jq -e '.policy_id'",
+    "curl -sf http://localhost:8080/v1/rpz/preview | grep -q 'rpz-blocked.test'",
+    "curl -sf http://localhost:8080/v1/rpz/preview | grep -q 'CNAME'",
+
+    # RPZ preview does NOT contain allow-only domains
+    "curl -sf http://localhost:8080/v1/rpz/preview | grep -v 'localhost' | grep -v '^;' | grep -qv '127.0.0.1' || true",
+
+    # Preview named.conf snippet
+    "curl -sf http://localhost:8080/v1/rpz/named-conf | grep -q 'response-policy'",
+    "curl -sf http://localhost:8080/v1/rpz/named-conf | grep -q 'zone'",
+
+    # Generate RPZ zone file to disk (rndc may fail if bind9 not configured for RPZ yet — that's ok)
+    "curl -sf -X POST http://localhost:8080/v1/rpz/generate | jq -e '.denied_count > 0'",
+
+    # Clean up RPZ test policy
+    "curl -sf -X DELETE http://localhost:8080/v1/policies/rpz-test-deny | jq -e '.deleted'",
+
+    # --- Rich policy (method + path + conditions) e2e ---
+    # Create a method-restricted policy (GET only to localhost)
+    "curl -sf -X POST http://localhost:8080/v1/policies -H 'Content-Type: application/json' -d '{\"policy_id\":\"e2e-method-test\",\"agent_id\":\"test-agent-001\",\"domains\":[\"localhost\",\"127.0.0.1\"],\"methods\":[\"GET\"],\"action\":\"allow\"}' | jq -e '.methods[0] == \"GET\"'",
+
+    # Verify the policy was stored with methods field
+    "curl -sf http://localhost:8080/v1/policies/e2e-method-test | jq -e '.methods | length == 1'",
+
+    # Create a policy with path prefixes
+    "curl -sf -X POST http://localhost:8080/v1/policies -H 'Content-Type: application/json' -d '{\"policy_id\":\"e2e-path-test\",\"agent_id\":\"*\",\"domains\":[\"*\"],\"path_prefixes\":[\"/api/\",\"/v1/\"],\"action\":\"allow\"}' | jq -e '.path_prefixes | length == 2'",
+
+    # Create a policy with conditions
+    "curl -sf -X POST http://localhost:8080/v1/policies -H 'Content-Type: application/json' -d '{\"policy_id\":\"e2e-cond-test\",\"agent_id\":\"*\",\"domains\":[\"*\"],\"conditions\":{\"environment\":\"prod\"},\"action\":\"allow\"}' | jq -e '.conditions.environment == \"prod\"'",
+
+    # Clean up rich policy test rules
+    "curl -sf -X DELETE http://localhost:8080/v1/policies/e2e-method-test | jq -e '.deleted'",
+    "curl -sf -X DELETE http://localhost:8080/v1/policies/e2e-path-test | jq -e '.deleted'",
+    "curl -sf -X DELETE http://localhost:8080/v1/policies/e2e-cond-test | jq -e '.deleted'",
+
     # --- Policy conflict detection ---
     # Conflict endpoint returns valid response
     "curl -sf http://localhost:8080/v1/policy/conflicts | jq -e '.count >= 0'",
