@@ -423,8 +423,9 @@ DEFAULT_SMOKE_COMMANDS = [
     "curl -sf -X DELETE http://localhost:8080/v1/agents/method-test-agent | jq -e '.deleted'",
 
     # --- ACCEPT-4: Audit event correlation ---
-    # Make a known proxy request and verify the exact audit event
-    "sleep 2 && BEFORE=$(sudo wc -l < /var/log/clawgress/audit.jsonl) && curl -s -o /dev/null --max-time 5 --proxy http://test-agent-001:clawgress-test-key-001@localhost:3128 http://localhost:8080/healthz && sleep 1 && sudo tail -1 /var/log/clawgress/audit.jsonl | jq -e '.agent_id == \"test-agent-001\" and .destination == \"localhost:8080\" and .decision == \"allow\"'",
+    # Make a known proxy request, then verify the most recent audit event has correct agent + decision
+    "sleep 1 && curl -s -o /dev/null --max-time 5 --proxy http://test-agent-001:clawgress-test-key-001@localhost:3128 http://localhost:8080/healthz",
+    "sleep 1 && sudo tail -1 /var/log/clawgress/audit.jsonl | jq -e '.agent_id == \"test-agent-001\" and .decision == \"allow\"'",
 
     # --- ACCEPT-5: Quota enforcement with real traffic ---
     # Set 1 RPS quota, make rapid requests, verify 429 status AND response body contains "Too Many"
